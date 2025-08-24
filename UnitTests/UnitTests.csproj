@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <Platforms>AnyCPU;x64</Platforms>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="../spec/**/*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>spec/%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit" Version="4.2.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Messages\FIX40\QuickFix.FIX40.csproj" />
+    <ProjectReference Include="..\Messages\FIX41\QuickFix.FIX41.csproj" />
+    <ProjectReference Include="..\Messages\FIX42\QuickFix.FIX42.csproj" />
+    <ProjectReference Include="..\Messages\FIX43\QuickFix.FIX43.csproj" />
+    <ProjectReference Include="..\Messages\FIX44\QuickFix.FIX44.csproj" />
+    <ProjectReference Include="..\Messages\FIX50SP1\QuickFix.FIX50SP1.csproj" />
+    <ProjectReference Include="..\Messages\FIX50SP2\QuickFix.FIX50SP2.csproj" />
+    <ProjectReference Include="..\Messages\FIX50\QuickFix.FIX50.csproj" />
+    <ProjectReference Include="..\Messages\FIXT11\QuickFix.FIXT11.csproj" />
+    <ProjectReference Include="..\QuickFIXn\QuickFix.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="spec\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="foo_config.cfg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

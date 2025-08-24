@@ -1,0 +1,21 @@
+# Auto detect text files and perform LF normalization
+*          text=auto
+
+*.bat    text
+*.cer    binary
+*.cfg    text
+*.cs     text
+*.csproj text
+*.def    text
+*.erb    text
+*.fmt    text
+*.md     text
+*.pfx    binary
+*.ps1    text
+*.rb     text
+*.sln    text
+*.txt    text
+*.xml    text
+*.xsl    text
+*.yml    text
+

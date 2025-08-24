@@ -1,0 +1,140 @@
+﻿<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+	<soap:Body>
+		<dlws:retrieveGetHistoryResponse xmlns="http://services.bloomberg.com/datalicense/dlws/ps/20071001" xmlns:dlws="http://services.bloomberg.com/datalicense/dlws/ps/20071001" xmlns:env="http://schemas.xmlsoap.org/soap/envelope/">
+			<dlws:statusCode>
+				<dlws:code>0</dlws:code>
+				<dlws:description>Success</dlws:description>
+			</dlws:statusCode>
+			<dlws:requestId>a7f2569a-e65c-479c-9765-a1cc2b2b2aee</dlws:requestId>
+			<dlws:responseId>1745944212-1131567498</dlws:responseId>
+			<dlws:headers>
+				<dlws:rundate>20250429</dlws:rundate>
+				<dlws:programflag>oneshot</dlws:programflag>
+				<dlws:daterange>
+					<dlws:duration>
+						<dlws:days>10</dlws:days>
+					</dlws:duration>
+				</dlws:daterange>
+			</dlws:headers>
+			<dlws:fields>
+				<dlws:field>PX_OPEN</dlws:field>
+				<dlws:field>PX_HIGH</dlws:field>
+				<dlws:field>PX_LOW</dlws:field>
+				<dlws:field>PX_LAST</dlws:field>
+				<dlws:field>PX_VOLUME</dlws:field>
+				<dlws:field>PX_ASK</dlws:field>
+				<dlws:field>PX_BID</dlws:field>
+				<dlws:field>PX_MID</dlws:field>
+			</dlws:fields>
+			<dlws:timestarted>2025-04-29T12:45:17-04:00</dlws:timestarted>
+			<dlws:instrumentDatas>
+				<dlws:instrumentData>
+					<dlws:code>0</dlws:code>
+					<dlws:instrument>
+						<dlws:id>US0378331005</dlws:id>
+					</dlws:instrument>
+					<dlws:date>2025-04-21</dlws:date>
+					<dlws:data value="193.265"/>
+					<dlws:data value="193.8"/>
+					<dlws:data value="189.811"/>
+					<dlws:data value="193.16"/>
+					<dlws:data value="46742537"/>
+					<dlws:data value="193.08"/>
+					<dlws:data value="192.97"/>
+					<dlws:data value="193.025"/>
+				</dlws:instrumentData>
+				<dlws:instrumentData>
+					<dlws:code>0</dlws:code>
+					<dlws:instrument>
+						<dlws:id>US0378331005</dlws:id>
+					</dlws:instrument>
+					<dlws:date>2025-04-22</dlws:date>
+					<dlws:data value="196.12"/>
+					<dlws:data value="201.59"/>
+					<dlws:data value="195.97"/>
+					<dlws:data value="199.74"/>
+					<dlws:data value="52976371"/>
+					<dlws:data value="199.61"/>
+					<dlws:data value="199.53"/>
+					<dlws:data value="199.57"/>
+				</dlws:instrumentData>
+				<dlws:instrumentData>
+					<dlws:code>0</dlws:code>
+					<dlws:instrument>
+						<dlws:id>US0378331005</dlws:id>
+					</dlws:instrument>
+					<dlws:date>2025-04-23</dlws:date>
+					<dlws:data value="206"/>
+					<dlws:data value="208"/>
+					<dlws:data value="202.799"/>
+					<dlws:data value="204.6"/>
+					<dlws:data value="52929165"/>
+					<dlws:data value="204.44"/>
+					<dlws:data value="204.32"/>
+					<dlws:data value="204.38"/>
+				</dlws:instrumentData>
+				<dlws:instrumentData>
+					<dlws:code>0</dlws:code>
+					<dlws:instrument>
+						<dlws:id>US0378331005</dlws:id>
+					</dlws:instrument>
+					<dlws:date>2025-04-24</dlws:date>
+					<dlws:data value="204.89"/>
+					<dlws:data value="208.83"/>
+					<dlws:data value="202.94"/>
+					<dlws:data value="208.37"/>
+					<dlws:data value="47310989"/>
+					<dlws:data value="208.28"/>
+					<dlws:data value="208.2"/>
+					<dlws:data value="208.24"/>
+				</dlws:instrumentData>
+				<dlws:instrumentData>
+					<dlws:code>0</dlws:code>
+					<dlws:instrument>
+						<dlws:id>US0378331005</dlws:id>
+					</dlws:instrument>
+					<dlws:date>2025-04-25</dlws:date>
+					<dlws:data value="206.365"/>
+					<dlws:data value="209.75"/>
+					<dlws:data value="206.2"/>
+					<dlws:data value="209.28"/>
+					<dlws:data value="38222258"/>
+					<dlws:data value="209.22"/>
+					<dlws:data value="209.16"/>
+					<dlws:data value="209.19"/>
+				</dlws:instrumentData>
+				<dlws:instrumentData>
+					<dlws:code>0</dlws:code>
+					<dlws:instrument>
+						<dlws:id>US0378331005</dlws:id>
+					</dlws:instrument>
+					<dlws:date>2025-04-28</dlws:date>
+					<dlws:data value="210"/>
+					<dlws:data value="211.5"/>
+					<dlws:data value="207.46"/>
+					<dlws:data value="210.14"/>
+					<dlws:data value="38743074"/>
+					<dlws:data value="210.09"/>
+					<dlws:data value="210.07"/>
+					<dlws:data value="210.08"/>
+				</dlws:instrumentData>
+				<dlws:instrumentData>
+					<dlws:code>0</dlws:code>
+					<dlws:instrument>
+						<dlws:id>US0378331005</dlws:id>
+					</dlws:instrument>
+					<dlws:date>2025-04-29</dlws:date>
+					<dlws:data value="208.693"/>
+					<dlws:data value="212.24"/>
+					<dlws:data value="208.37"/>
+					<dlws:data value="210.495"/>
+					<dlws:data value="15095354"/>
+					<dlws:data value="210.5"/>
+					<dlws:data value="210.49"/>
+					<dlws:data value="210.495"/>
+				</dlws:instrumentData>
+			</dlws:instrumentDatas>
+			<dlws:timefinished>2025-04-29T12:45:21-04:00</dlws:timefinished>
+		</dlws:retrieveGetHistoryResponse>
+	</soap:Body>
+</soap:Envelope>
