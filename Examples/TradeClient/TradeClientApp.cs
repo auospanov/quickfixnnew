@@ -317,8 +317,14 @@ GO
             if (message.Header.GetString(QuickFix.Fields.Tags.MsgType) == QuickFix.Fields.MsgType.LOGON)
             {
                 var sessionConfig = _settings.Get(sessionId);
-   
-                if (sessionConfig.Has("SenderCompID") && sessionConfig.Has("Password"))
+
+                if (sessionConfig.Has("Username") && sessionConfig.Has("Password")) //add 03.11.2025 for AIX
+                {
+                    message.SetField(new QuickFix.Fields.Username(sessionConfig.GetString("Username")));
+                    message.SetField(new QuickFix.Fields.Password(sessionConfig.GetString("Password")));
+                    if (isDebug) Console.WriteLine($"Injected Username/Password for session {sessionId}");
+                }
+                else if (sessionConfig.Has("SenderCompID") && sessionConfig.Has("Password"))
                 {
                     message.SetField(new QuickFix.Fields.Username(sessionConfig.GetString("SenderCompID")));
                     message.SetField(new QuickFix.Fields.Password(sessionConfig.GetString("Password")));

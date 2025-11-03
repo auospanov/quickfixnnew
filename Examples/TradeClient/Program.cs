@@ -38,7 +38,7 @@ namespace TradeClient
                 DailyLogger.Log($"[TaskScheduler] Unobserved task exception: {args.Exception.Message}");
             };
             #if DEBUG
-                ADAPTER =  "kaseDropCopy"; // "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy
+                ADAPTER =  "aix"; // "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy
             #endif
 
             try{ADAPTER = args[0]; }catch(Exception ex){}
