@@ -1120,6 +1120,8 @@ private string GetOrdStatusName(char status)
 
         public void Run()
         {
+            checkNewOrders();
+            return;
             if (this.MyInitiator is null)
                 throw new ApplicationException("Somehow this.MyInitiator is not set");
 
