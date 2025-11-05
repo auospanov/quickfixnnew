@@ -1447,6 +1447,77 @@ private string GetOrdStatusName(char status)
             string line = ReadCommand();
             return (line[0].Equals('y') || line[0].Equals('Y'));
         }
+        //проверка наличия новых необработанных приказов
+        public void checkNewOrders()
+        {
+            try
+            {
+                MyDbContext db = new MyDbContext();
+                var rz = db.newOrder.Where(r => string.IsNullOrEmpty(r.ProcessedStatus));
+                foreach( var r in rz)
+                {
+                    OrdType ordType = new OrdType();
+                    if (r.Type.ToUpper() == "MARKET") ordType = new OrdType(OrdType.MARKET);
+                    else if (r.Type.ToUpper() == "LIMIT") ordType = new OrdType(OrdType.LIMIT);
+                    else
+                    {
+                        //здесь нужно поставить логирование
+                        continue;
+                    }
+                    char s = ' ';
+                    if(r.Direction.ToUpper()=="BUY") s= Side.BUY;
+                    else if (r.Direction.ToUpper() == "SELL") s = Side.SELL;
+                    //else if (r.Direction.ToUpper() == "CANCEL_BUY") s = Side.;
+                    else
+                    {
+                        //здесь нужно ставить логирование
+                        continue;
+                    }
+
+                    //создание нового приказа
+                    QuickFix.FIX44.NewOrderSingle newOrderSingle = new QuickFix.FIX44.NewOrderSingle(
+                       new ClOrdID(r.Id.ToString()),
+                       //QuerySymbol(),
+                       new Symbol(r.Ticker),
+                       //QuerySide(),
+                       new Side(s),
+                       new TransactTime(DateTime.Now),
+                       ordType);
+
+                    newOrderSingle.Set(new HandlInst('1'));
+                    newOrderSingle.Set(new OrderQty(r.Quantity.Value));
+                    s = ' ';
+                    if(r.TimeInForce.ToUpper()=="DAY") s= TimeInForce.DAY;
+                    else if (r.TimeInForce.ToUpper() == "GOOD_TILL_DATE") s = TimeInForce.GOOD_TILL_DATE;
+                    else if (r.TimeInForce.ToUpper() == "IMMEDIATE_OR_CANCEL") s = TimeInForce.IMMEDIATE_OR_CANCEL;
+                    else if (r.TimeInForce.ToUpper() == "GOOD_TILL_CANCEL") s = TimeInForce.GOOD_TILL_CANCEL;
+                    else if (r.TimeInForce.ToUpper() == "GOOD_TILL_CROSSING") s = TimeInForce.GOOD_TILL_CROSSING;
+                    else if (r.TimeInForce.ToUpper() == "FILL_OR_KILL") s = TimeInForce.FILL_OR_KILL;
+                    else
+                    {
+                        //здесь нужно ставить логирование
+                        continue;
+                    }
+                    newOrderSingle.Set(new TimeInForce(s));
+                    if (ordType.Value == OrdType.LIMIT || ordType.Value == OrdType.STOP_LIMIT)
+                        newOrderSingle.Set(new Price(r.Price.Value));
+
+                    if (newOrderSingle is not null && QueryConfirm("Send order"))
+                    {
+                        newOrderSingle.Header.GetString(Tags.BeginString);
+
+                        SendMessage(newOrderSingle);
+                    }
+                }
+
+
+            }
+            catch 
+            {
+                //здесь надо поставить логирование
+            }
+
+        }
 
         #region Message creation functions
         private QuickFix.FIX44.NewOrderSingle QueryNewOrderSingle44()
