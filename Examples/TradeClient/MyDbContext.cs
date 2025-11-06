@@ -17,7 +17,7 @@ namespace TradeClient
         public DbSet<quotesSimple> quotesSimple { get; set; }
         public DbSet<instrsView> instrsView { get; set; }
         public DbSet<settingsTP> settingsTP { get; set; }
-        public DbSet<NewOrders> newOrders { get; set; }
+        public DbSet<NewOrders> NewOrders { get; set; }
         
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

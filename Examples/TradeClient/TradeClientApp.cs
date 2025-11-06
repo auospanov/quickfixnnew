@@ -1,21 +1,23 @@
-﻿using System;
+﻿using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 using QuickFix;
 using QuickFix.Fields;
-using System.Collections.Generic;
-using ApplicationException = System.ApplicationException;
-using Exception = System.Exception;
-using System.Runtime;
-using System.Linq;
-using System.Threading;
 using QuickFix.Logger;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
-using System.Collections.Concurrent;
-using System.Text;
-using System.Globalization;
 using System.Drawing;
+using System.Globalization;
+using System.Linq;
+using System.Runtime;
+using System.Text;
 using System.Text.Json.Serialization;
-using Newtonsoft.Json;
+using System.Threading;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
+using ApplicationException = System.ApplicationException;
+using Exception = System.Exception;
 namespace TradeClient
 { 
     public class TradeClientApp : QuickFix.MessageCracker, QuickFix.IApplication
@@ -1455,8 +1457,13 @@ private string GetOrdStatusName(char status)
             try
             {
                 MyDbContext db = new MyDbContext();
-                var rz = db.newOrders.Where(r => r.Processed_Status ==null);
-                foreach ( var r in rz)
+                //var rz1 = db.newOrders.Where(r => r.Processed_Status is null);
+
+                var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status));
+                string sql = rz.ToQueryString();
+
+
+                foreach ( var r in rz.ToList())
                 {
                     OrdType ordType = new OrdType();
                     if (r.Type.ToUpper() == "MARKET") ordType = new OrdType(OrdType.MARKET);
@@ -1504,17 +1511,17 @@ private string GetOrdStatusName(char status)
                     if (ordType.Value == OrdType.LIMIT || ordType.Value == OrdType.STOP_LIMIT)
                         newOrderSingle.Set(new Price(r.Price.Value));
 
-                    if (newOrderSingle is not null && QueryConfirm("Send order"))
-                    {
+                    //if (newOrderSingle is not null && QueryConfirm("Send order"))
+                    //{
                         newOrderSingle.Header.GetString(Tags.BeginString);
 
                         SendMessage(newOrderSingle);
-                    }
+                    //}
                 }
 
 
             }
-            catch 
+            catch(Exception err) 
             {
                 //здесь надо поставить логирование
             }
