@@ -1455,8 +1455,8 @@ private string GetOrdStatusName(char status)
             try
             {
                 MyDbContext db = new MyDbContext();
-                var rz = db.newOrder.Where(r => string.IsNullOrEmpty(r.ProcessedStatus));
-                foreach( var r in rz)
+                var rz = db.newOrders.Where(r => r.Processed_Status ==null);
+                foreach ( var r in rz)
                 {
                     OrdType ordType = new OrdType();
                     if (r.Type.ToUpper() == "MARKET") ordType = new OrdType(OrdType.MARKET);

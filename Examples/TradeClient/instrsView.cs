@@ -15,20 +15,20 @@ namespace TradeClient
         public string symbol { get; set; }
         public string codeMubasher { get; set; }       
     }
-    public class NewOrder
+    public class NewOrders
     {
         public int Id { get; set; }
         public DateTime? InpDate { get; set; }
         public byte? IsReal { get; set; }
-        public string ProcessedStatus { get; set; }
-        public DateTime? ProcessedTime { get; set; }
+        public string Processed_Status { get; set; }
+        public DateTime? Processed_Time { get; set; }
         public string ClientId { get; set; }
-        public string OrderIDAIS { get; set; }
+        public string OrderID_AIS { get; set; }
         public string OrigClOrderID { get; set; }
         public string ExchangeCode { get; set; }
         public string Ticker { get; set; }
         public string Board { get; set; }
-        public string BloomExchCode { get; set; }
+        public string Bloom_ExchCode { get; set; }
         public string Direction { get; set; }
         public decimal? Price { get; set; }
         public decimal? Quantity { get; set; }

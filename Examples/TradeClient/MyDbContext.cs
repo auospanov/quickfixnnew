@@ -17,7 +17,7 @@ namespace TradeClient
         public DbSet<quotesSimple> quotesSimple { get; set; }
         public DbSet<instrsView> instrsView { get; set; }
         public DbSet<settingsTP> settingsTP { get; set; }
-        public DbSet<NewOrder> newOrder { get; set; }
+        public DbSet<NewOrders> newOrders { get; set; }
         
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -45,7 +45,7 @@ namespace TradeClient
                //entity.HasKey(e => e.Id); // указываем ключ
                entity.HasNoKey();
            });
-            modelBuilder.Entity<NewOrder>().ToTable(nameof(NewOrder), t => t.ExcludeFromMigrations());
+            modelBuilder.Entity<NewOrders>().ToTable(nameof(NewOrders), t => t.ExcludeFromMigrations());
         }
     }
 }
