@@ -1459,7 +1459,9 @@ private string GetOrdStatusName(char status)
                 MyDbContext db = new MyDbContext();
                 //var rz1 = db.newOrders.Where(r => r.Processed_Status is null);
 
-                var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status));
+                var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
+                    && r.ExchangeCode==Program.EXCH_CODE
+                    );
                 string sql = rz.ToQueryString();
 
 
@@ -1511,12 +1513,19 @@ private string GetOrdStatusName(char status)
                     if (ordType.Value == OrdType.LIMIT || ordType.Value == OrdType.STOP_LIMIT)
                         newOrderSingle.Set(new Price(r.Price.Value));
 
+                    if (Program.EXCH_CODE == "AIX")
+                    {
+                        newOrderSingle.Set(new Account(r.Investor));
+                        newOrderSingle.Set(new OrderCapacity(r.Acc));
+                        //newOrderSingle.Set(new );
+                    }
                     //if (newOrderSingle is not null && QueryConfirm("Send order"))
                     //{
                         newOrderSingle.Header.GetString(Tags.BeginString);
 
                         SendMessage(newOrderSingle);
                     //}
+                    break;
                 }
 
 

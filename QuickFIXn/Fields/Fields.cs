@@ -9864,22 +9864,22 @@ public sealed class SecondaryExecID : StringField
 /// <summary>
 /// OrderCapacity Field
 /// </summary>
-public sealed class OrderCapacity : CharField
+public sealed class OrderCapacity : StringField
 {
     public const int TAG = 528;
 
     public OrderCapacity()
         : base(Tags.OrderCapacity) {}
-    public OrderCapacity(char val)
+    public OrderCapacity(string val)
         : base(Tags.OrderCapacity, val) {}
 
     // Field Enumerations
-    public const char AGENCY = 'A';
-    public const char PROPRIETARY = 'G';
-    public const char INDIVIDUAL = 'I';
-    public const char PRINCIPAL = 'P';
-    public const char RISKLESS_PRINCIPAL = 'R';
-    public const char AGENT_FOR_OTHER_MEMBER = 'W';
+    public const string AGENCY = "A";
+    public const string PROPRIETARY = "G";
+    public const string INDIVIDUAL = "I";
+    public const string PRINCIPAL = "P";
+    public const string RISKLESS_PRINCIPAL = "R";
+    public const string AGENT_FOR_OTHER_MEMBER = "W";
 }
 
 
