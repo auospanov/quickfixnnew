@@ -1675,9 +1675,7 @@ private string GetOrdStatusName(char status)
                 var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
                     && r.ExchangeCode==Program.EXCH_CODE
                     );
-                string sql = rz.ToQueryString();
-
-
+                
                 foreach ( var r in rz.ToList())
                 {
                     OrdType ordType = new OrdType();
@@ -1738,10 +1736,15 @@ private string GetOrdStatusName(char status)
 
                         SendMessage(newOrderSingle);
                     //}
-                    r.Processed_Status = "processed";
-                    db.SaveChanges();
-                    break;
+                    //r.Processed_Status = "processed";
+                    //r.Processed_Time = DateTime.Now;
+                    //db.SaveChanges();
+                    
                 }
+                rz.ExecuteUpdate(r => r.SetProperty(r1 => r1.Processed_Status, r1 => "processed")
+                .SetProperty(r1 => r1.Processed_Time, r1 => DateTime.Now));
+                db.SaveChanges();
+                
 
 
             }
