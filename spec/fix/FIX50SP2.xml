@@ -7840,13 +7840,21 @@
   <field number='525' name='NestedPartyIDSource' type='CHAR' />
   <field number='526' name='SecondaryClOrdID' type='STRING' />
   <field number='527' name='SecondaryExecID' type='STRING' />
-  <field number='528' name='OrderCapacity' type='CHAR'>
+  <field number='528' name='OrderCapacity' type='STRING'>
    <value enum='A' description='AGENCY' />
    <value enum='G' description='PROPRIETARY' />
    <value enum='I' description='INDIVIDUAL' />
    <value enum='P' description='PRINCIPAL' />
    <value enum='R' description='RISKLESS_PRINCIPAL' />
    <value enum='W' description='AGENT_FOR_OTHER_MEMBER' />
+   <value enum="BL" description="Broker Local"/>
+   <value enum="BF" description="Broker Foreign"/>
+   <value enum="CL" description="Client Local"/>
+   <value enum="CF" description="Client Foreign"/>
+   <value enum="CB" description="Client Belarus"/>
+   <value enum="CR" description="Client Russian"/>
+   <value enum="ML" description="Market Maker Local"/>
+   <value enum="MF" description="Market Maker Foreign"/>
   </field>
   <field number='529' name='OrderRestrictions' type='MULTIPLECHARVALUE'>
    <value enum='1' description='PROGRAM_TRADE' />

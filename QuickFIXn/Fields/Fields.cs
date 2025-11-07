@@ -1,6 +1,7 @@
 // This is a generated file.  Don't edit it directly!
 
 using System;
+using System.Diagnostics.Metrics;
 using System.Threading.Channels;
 
 namespace QuickFix.Fields;
@@ -9880,6 +9881,15 @@ public sealed class OrderCapacity : StringField
     public const string PRINCIPAL = "P";
     public const string RISKLESS_PRINCIPAL = "R";
     public const string AGENT_FOR_OTHER_MEMBER = "W";
+    public const string BROKER_LOCAL = "BL";
+    public const string BROKER_FOREIGN = "BF";
+    public const string CLIENT_LOCAL = "CL";
+    public const string CLIENT_FOREIGN = "CF";
+    public const string CLIENT_BELARUS = "CB";
+    public const string CLIENT_RUSSIAN = "CR";
+    public const string MARKET_MAKER_LOCAL = "ML";
+    public const string MARKET_MAKER_FOREIGN = "MF";
+
 }
 
 

@@ -137,7 +137,7 @@ namespace TradeClient
 
                 initiator.Start();
                 application.Run();
-                initiator.Stop();
+                //initiator.Stop();
             }
             catch (Exception e)
             {
