@@ -18,15 +18,15 @@ public class NewOrderSingle : Message
             ClOrdID aClOrdID,
             Symbol aSymbol,
             Side aSide,
-            TransactTime aTransactTime,
-            OrdType aOrdType
+            TransactTime aTransactTime
+            //OrdType aOrdType
         ) : this()
     {
         ClOrdID = aClOrdID;
         Symbol = aSymbol;
         Side = aSide;
         TransactTime = aTransactTime;
-        OrdType = aOrdType;
+        //OrdType = aOrdType;
     }
 
     public ClOrdID ClOrdID
