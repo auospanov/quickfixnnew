@@ -1676,7 +1676,7 @@ private string GetOrdStatusName(char status)
                     && r.ExchangeCode==Program.EXCH_CODE
                     );
                 
-                foreach ( var r in rz.ToList())
+                foreach ( var r in rz)
                 {
                     OrdType ordType = new OrdType();
                     if (r.Type.ToUpper() == "MARKET") ordType = new OrdType(OrdType.MARKET);
