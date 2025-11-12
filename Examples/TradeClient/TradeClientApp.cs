@@ -32,16 +32,23 @@ namespace TradeClient
         //private readonly int _timerIntervalMilliseconds = int.Parse(Program.GetValueByKey(Program.cfg, "timerIntervalMilliseconds"));
         public TradeClientApp(SessionSettings settings)
         {
-            
-            _settings = settings;         
-                         
+
+            _settings = settings;
+
 #if DEBUG
-                        isDebug = true;
-                        //connection = System.Environment.GetEnvironmentVariable("HB_FixDb_TEST");
+            isDebug = true;
+            //connection = System.Environment.GetEnvironmentVariable("HB_FixDb_TEST");
 #else
             isDebug = false;
             //connection = System.Environment.GetEnvironmentVariable("HB_FixDb_PROD");
+            
+            }
 #endif
+            try
+            {
+                _timerIntervalMilliseconds = int.Parse(Program.GetValueByKey(Program.cfg, "timerIntervalMilliseconds"));
+            }
+            catch { }
         }
         private Session? _session = null;
 
@@ -1750,8 +1757,8 @@ private string GetOrdStatusName(char status)
                 //var rz1 = db.newOrders.Where(r => r.Processed_Status is null);
 
                 var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
-                    && r.ExchangeCode==Program.EXCH_CODE
-                    );
+                    && r.ExchangeCode == Program.EXCH_CODE
+                    ).ToList();
                 
                 foreach ( var r in rz)
                 {
@@ -1818,8 +1825,10 @@ private string GetOrdStatusName(char status)
                     }
                     
                 }
-                rz.ExecuteUpdate(r => r.SetProperty(r1 => r1.Processed_Status, r1 => "processed")
-                .SetProperty(r1 => r1.Processed_Time, r1 => DateTime.Now));
+                //rz.ExecuteUpdate(r => r.SetProperty(r1 => r1.Processed_Status, r1 => "processed")
+                //.SetProperty(r1 => r1.Processed_Time, r1 => DateTime.Now));
+                rz.ForEach(r => { r.Processed_Status = "processed"; r.Processed_Time = DateTime.Now; });
+
                 db.SaveChanges();
                 
 
