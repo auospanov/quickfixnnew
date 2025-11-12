@@ -1044,7 +1044,7 @@ GO
         {
             if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
-                if (isDebug) Console.WriteLine("Received ExecutionReport");
+                if (isDebug) Console.WriteLine("Received OrderCancelReject");
                 try
                 {
                     using (var db = new MyDbContext())
@@ -1078,6 +1078,37 @@ GO
             }
         }
 
+        public void OnMessage(QuickFix.FIX50SP2.BusinessMessageReject m, SessionID s)
+        {
+            /*
+            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            {
+                if (isDebug) Console.WriteLine("Received BusinessMessageReject");
+                try
+                {
+                    using (var db = new MyDbContext())
+                    {
+                        var order = new orders();
+                        order.clientOrderID = m.ClOrdID.Value;
+                        order.clientOrderID = m.OrigClOrdID.Value;
+                        order.status = "REJECTED";
+                        order.executionTime = DateTime.Parse(m.TransactTime.Value.ToString());
+                        string status = string.Empty;
+                        
+
+                        db.orders.Add(order);
+                        db.SaveChanges();
+
+
+                    }
+                }
+                catch (Exception e)
+                {
+                    DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                }
+            }
+            */
+        }
 
         private string GetSideName(char side)
 {
@@ -1364,7 +1395,7 @@ private string GetOrdStatusName(char status)
             }
         }
 
-
+        
 
         public void OnMessage(QuickFix.FIX44.MarketDataRequestReject m, SessionID s)
         {
@@ -1758,10 +1789,11 @@ private string GetOrdStatusName(char status)
 
                 var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
                     && r.ExchangeCode == Program.EXCH_CODE
-                    ).ToList();
+                    ).OrderBy(r=>r.Id).Take(100).ToList();
                 
                 foreach ( var r in rz)
                 {
+
                     OrdType ordType = new OrdType();
                     if (r.Type.ToUpper() == "MARKET") ordType = new OrdType(OrdType.MARKET);
                     else if (r.Type.ToUpper() == "LIMIT") ordType = new OrdType(OrdType.LIMIT);
