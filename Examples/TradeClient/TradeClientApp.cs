@@ -1093,10 +1093,13 @@ GO
                         //order.clientOrderID = m.OrigClOrdID.Value;
                         //order.status = "REJECTED";
                         order.orderReferenceExchange = "MsgType = j";
-                        order.status = "RefMsgType = " + m.RefMsgType.Value;
+                        order.status = "REJECTED";
+                        order.clientID = "RefMsgType = " + m.RefMsgType.Value;
                         order.executionTime = DateTime.Now;
                         order.fullMessage = m.ToJSON();
-                        
+                        order.comments = m.Text.Value;
+                        order.exchangeCode = Program.EXCH_CODE;
+
                         db.orders.Add(order);
                         db.SaveChanges();
 
@@ -1792,6 +1795,8 @@ private string GetOrdStatusName(char status)
                     && r.ExchangeCode == Program.EXCH_CODE
                     ).OrderBy(r=>r.Id).Take(100).ToList();
                 
+                DateTime startTime = DateTime.Now;
+
                 foreach ( var r in rz)
                 {
 
@@ -1863,9 +1868,12 @@ private string GetOrdStatusName(char status)
                 rz.ForEach(r => { r.Processed_Status = "processed"; r.Processed_Time = DateTime.Now; });
 
                 db.SaveChanges();
+
+                if(DateTime.Now.AddSeconds(1) < startTime)
+                {
+                    Thread.Sleep(1000);
+                }
                 
-
-
             }
             catch(Exception err) 
             {
