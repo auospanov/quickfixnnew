@@ -26,9 +26,10 @@ namespace TradeClient
         public bool isDebug = false;
         private SessionSettings _settings;
         public static string connection = "";// "Data Source=WIN-DUS0A072PNF\\SQLEXPRESS;Initial Catalog=drivers_beSQL_new;Persist Security Info=True;User ID=platformAdm;Password=Admin$12345";
-       public static List<instrsView> instrs = new List<instrsView>();
+        public static List<instrsView> instrs = new List<instrsView>();
         private Timer _timer;
-        private readonly int _timerIntervalMilliseconds = 10_000; // например, 10 секунд
+        private readonly int _timerBatchCollectMilliseconds = 10_000; // например, 10 секунд
+        private readonly int portionSendOrder = 100;
         //private readonly int _timerIntervalMilliseconds = int.Parse(Program.GetValueByKey(Program.cfg, "timerIntervalMilliseconds"));
         public TradeClientApp(SessionSettings settings)
         {
@@ -46,7 +47,8 @@ namespace TradeClient
 #endif
             try
             {
-                _timerIntervalMilliseconds = int.Parse(Program.GetValueByKey(Program.cfg, "timerIntervalMilliseconds"));
+                _timerBatchCollectMilliseconds = int.Parse(Program.GetValueByKey(Program.cfg, "timerBatchCollectMilliseconds"));
+                portionSendOrder = int.Parse(Program.GetValueByKey(Program.cfg, "portionSendOrder"));
             }
             catch { }
         }
@@ -284,7 +286,7 @@ GO
                         callback: TimerTick, // метод который будет вызываться
                         state: null,
                         dueTime: 0,                // Запускать сразу
-                        period: _timerIntervalMilliseconds // Периодичность
+                        period: _timerBatchCollectMilliseconds // Периодичность
                     );
                     instrs = new List<instrsView>();
                 }
@@ -1793,7 +1795,7 @@ private string GetOrdStatusName(char status)
 
                 var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
                     && r.ExchangeCode == Program.EXCH_CODE
-                    ).OrderBy(r=>r.Id).Take(100).ToList();
+                    ).OrderBy(r=>r.Id).Take(portionSendOrder).ToList();
                 
                 DateTime startTime = DateTime.Now;
 
