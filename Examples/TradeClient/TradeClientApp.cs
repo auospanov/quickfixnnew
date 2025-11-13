@@ -1080,7 +1080,7 @@ GO
 
         public void OnMessage(QuickFix.FIX50SP2.BusinessMessageReject m, SessionID s)
         {
-            /*
+            
             if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
@@ -1089,13 +1089,14 @@ GO
                     using (var db = new MyDbContext())
                     {
                         var order = new orders();
-                        order.clientOrderID = m.ClOrdID.Value;
-                        order.clientOrderID = m.OrigClOrdID.Value;
-                        order.status = "REJECTED";
-                        order.executionTime = DateTime.Parse(m.TransactTime.Value.ToString());
-                        string status = string.Empty;
+                        //order.clientOrderID = m.ClOrdID.Value;
+                        //order.clientOrderID = m.OrigClOrdID.Value;
+                        //order.status = "REJECTED";
+                        order.orderReferenceExchange = "MsgType = j";
+                        order.status = "RefMsgType = " + m.RefMsgType.Value;
+                        order.executionTime = DateTime.Now;
+                        order.fullMessage = m.ToJSON();
                         
-
                         db.orders.Add(order);
                         db.SaveChanges();
 
@@ -1107,7 +1108,7 @@ GO
                     DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
                 }
             }
-            */
+            
         }
 
         private string GetSideName(char side)

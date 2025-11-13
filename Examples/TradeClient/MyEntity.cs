@@ -109,5 +109,6 @@ namespace TradeClient
 		public DateTime? whenRemoved {get;set;}
 		public string TrdMatchID {get;set;}
 		public long? msgNum { get;set;}
+		public string fullMessage { get;set;}
 	}
 }
