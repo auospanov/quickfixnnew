@@ -1032,6 +1032,7 @@ GO
                         order.exchangeCode = Program.EXCH_CODE;
                         order.isReal = Program.ISREAL;
                         order.msgNum = int.Parse(m.Header.GetString(34));
+                        order.fullMessage = m.ToJSON();
                         OrdersCache.Add(order); // замените на нужную вам структуру хранения (например, Add to List/Queue/Db)
                     }
                 }
@@ -1080,6 +1081,35 @@ GO
             }
         }
 
+        public void OnMessage(QuickFix.FIXT11.Reject m, SessionID s)
+        {
+            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            {
+                if (isDebug) Console.WriteLine("FIXT11.Reject");
+                try
+                {
+                    using (var db = new MyDbContext())
+                    {
+                        var order = new orders();
+
+                        order.orderReferenceExchange = "MsgType = 3";
+                        order.exchangeCode = Program.EXCH_CODE;
+                        order.clientID = "RefMsgType = " + m.RefMsgType.Value;
+                        order.serial = m.RefSeqNum.Value.ToString();
+                        order.executionTime = DateTime.Now;
+                        order.fullMessage = m.ToJSON();
+
+                        db.orders.Add(order);
+                        db.SaveChanges();
+                    }
+                }
+                catch (Exception e)
+                {
+                    DailyLogger.Log($"[FIXT11.Reject] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                }
+            }
+
+            }
         public void OnMessage(QuickFix.FIX50SP2.BusinessMessageReject m, SessionID s)
         {
             
@@ -1101,6 +1131,7 @@ GO
                         order.fullMessage = m.ToJSON();
                         order.comments = m.Text.Value;
                         order.exchangeCode = Program.EXCH_CODE;
+                        order.serial = m.RefSeqNum.Value.ToString();
 
                         db.orders.Add(order);
                         db.SaveChanges();
