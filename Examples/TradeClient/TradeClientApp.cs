@@ -1026,8 +1026,7 @@ GO
                             }
                         }
                         catch { }
-
-
+                        if (m.IsSetField(111)) order.maxFloor = m.GetDecimal(111);
 
                         order.exchangeCode = Program.EXCH_CODE;
                         order.isReal = Program.ISREAL;
@@ -1886,6 +1885,11 @@ private string GetOrdStatusName(char status)
 
                         if (ordType.Value == OrdType.LIMIT || ordType.Value == OrdType.STOP_LIMIT)
                             ord1.Set(new Price(r.Price.Value));
+
+                        if(r.MaxFloor is not null)
+                        {
+                            if(r.MaxFloor>0) ord1.Set(new MaxFloor(r.MaxFloor.Value));
+                        }
 
                         ord1.Set(new Account(r.Investor));
                         ord1.Set(new OrderCapacity(r.Acc));

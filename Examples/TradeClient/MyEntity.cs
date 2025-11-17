@@ -110,5 +110,7 @@ namespace TradeClient
 		public string TrdMatchID {get;set;}
 		public long? msgNum { get;set;}
 		public string fullMessage { get;set;}
-	}
+        [Precision(18, 6)]
+        public decimal? maxFloor { get; set; }
+    }
 }

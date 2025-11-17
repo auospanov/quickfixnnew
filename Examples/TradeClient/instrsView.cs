@@ -56,6 +56,7 @@ namespace TradeClient
         public string? ContrBroker { get; set; }
         public string? PartyIDSource { get; set; }
         public string? PartyRole { get; set; }
+        public decimal? MaxFloor { get; set; }
     }
 
 
