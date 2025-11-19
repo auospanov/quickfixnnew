@@ -741,10 +741,15 @@ GO
                     if (m.IsSetField(32)) order.quantityDeal = (long)m.GetDecimal(32);
                     if (m.IsSetField(6)) order.priceAvg = m.GetDecimal(6);
                     if (m.IsSetField(14)) order.quantityDealTotal = (long)m.GetDecimal(14);
-                    if (m.IsSetField(126)) order.expirationDate = DateTime.Parse(m.GetString(126));
+                    //if (m.IsSetField(126)) order.expirationDate = DateTime.Parse(m.GetString(126));
+                    try
+                    {
+                        order.expirationDate = DateTime.ParseExact(m.ExpireDate.Value, "yyyyMMdd", CultureInfo.InvariantCulture);
+                    }
+                    catch { }
                     if (m.IsSetField(59)) 
-                        //order.timeInForce = m.GetChar(59).ToString(); d
-                         order.timeInForce = GetTimeInForceName(m.GetChar(59));
+                    //order.timeInForce = m.GetChar(59).ToString(); d
+                        order.timeInForce = GetTimeInForceName(m.GetChar(59));
 
                     //if (m.IsSetField(921)) order.cashQty = m.GetDecimal(921);
                     if (m.IsSetField(39)) 
