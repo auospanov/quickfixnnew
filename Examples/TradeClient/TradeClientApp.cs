@@ -696,7 +696,7 @@ GO
                     if (m.IsSetField(58))
                     {
                         string comment = m.GetField(new QuickFix.Fields.Text()).getValue();
-                        if (Program.EXCH_CODE.Equals("KASE", StringComparison.OrdinalIgnoreCase))
+                        if (Program.EXCH_CODE.Contains("KASE", StringComparison.OrdinalIgnoreCase))
                         {
                             order.comments = Encoding.GetEncoding("windows-1251").GetString(Encoding.GetEncoding("windows-1252").GetBytes(comment));
                         }
@@ -707,14 +707,14 @@ GO
                     }
 
                     if (m.IsSetField(55)) order.ticker = m.GetField(new QuickFix.Fields.Symbol()).getValue();
-                    if (Program.EXCH_CODE.Equals("KASE", StringComparison.OrdinalIgnoreCase) && m.IsSetField(336))
+                    if (Program.EXCH_CODE.Contains("KASE", StringComparison.OrdinalIgnoreCase) && m.IsSetField(336))
                     {
                         order.board = m.GetString(336);
                     }
                     if (m.IsSetField(1)) order.acc = m.GetField(new QuickFix.Fields.Account()).getValue();
                     if (m.IsSetField(448)) order.investor = m.GetField(new QuickFix.Fields.PartyID()).getValue();
 
-                    if (Program.EXCH_CODE.Equals("KASE", StringComparison.OrdinalIgnoreCase))
+                    if (Program.EXCH_CODE.Contains("KASE", StringComparison.OrdinalIgnoreCase))
                     {
                         if (m.IsSetField(6029)) order.currency = m.GetString(6029);
                     }
@@ -881,7 +881,7 @@ GO
                         if (m.IsSetField(58))
                         {
                             string comment = m.GetField(new QuickFix.Fields.Text()).getValue();
-                            if (Program.EXCH_CODE.Equals("KASE", StringComparison.OrdinalIgnoreCase))
+                            if (Program.EXCH_CODE.Contains("KASE", StringComparison.OrdinalIgnoreCase))
                             {
                                 order.comments = Encoding.GetEncoding("windows-1251").GetString(Encoding.GetEncoding("windows-1252").GetBytes(comment));
                             }
@@ -892,7 +892,7 @@ GO
                         }
 
                         if (m.IsSetField(55)) order.ticker = m.GetField(new QuickFix.Fields.Symbol()).getValue();
-                        if (Program.EXCH_CODE.Equals("KASE", StringComparison.OrdinalIgnoreCase) && m.IsSetField(336))
+                        if (Program.EXCH_CODE.Contains("KASE", StringComparison.OrdinalIgnoreCase) && m.IsSetField(336))
                         {
                             order.board = m.GetString(336);
                         }
@@ -908,7 +908,7 @@ GO
 
                         //if (m.IsSetField(448)) order.investor = m.GetField(new QuickFix.Fields.PartyID()).getValue();
 
-                        if (Program.EXCH_CODE.Equals("KASE", StringComparison.OrdinalIgnoreCase))
+                        if (Program.EXCH_CODE.Contains("KASE", StringComparison.OrdinalIgnoreCase))
                         {
                             if (m.IsSetField(6029)) order.currency = m.GetString(6029);
                         }
@@ -1114,6 +1114,42 @@ GO
             }
 
             }
+        public void OnMessage(QuickFix.FIX44.BusinessMessageReject m, SessionID s)
+        {
+
+            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            {
+                if (isDebug) Console.WriteLine("Received BusinessMessageReject");
+                try
+                {
+                    using (var db = new MyDbContext())
+                    {
+                        var order = new orders();
+                        //order.clientOrderID = m.ClOrdID.Value;
+                        //order.clientOrderID = m.OrigClOrdID.Value;
+                        //order.status = "REJECTED";
+                        order.orderReferenceExchange = "MsgType = j";
+                        order.status = "REJECTED";
+                        order.clientID = "RefMsgType = " + m.RefMsgType.Value;
+                        order.executionTime = DateTime.Now;
+                        order.fullMessage = m.ToJSON();
+                        order.comments = m.Text.Value;
+                        order.exchangeCode = Program.EXCH_CODE;
+                        order.serial = m.RefSeqNum.Value.ToString();
+
+                        db.orders.Add(order);
+                        db.SaveChanges();
+
+
+                    }
+                }
+                catch (Exception e)
+                {
+                    DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                }
+            }
+
+        }
         public void OnMessage(QuickFix.FIX50SP2.BusinessMessageReject m, SessionID s)
         {
             
@@ -1903,10 +1939,65 @@ private string GetOrdStatusName(char status)
                         SendMessage(ord1);
                         
                     }
-                    
+                    else if (Program.EXCH_CODE.Contains("KASE"))
+                    {
+                        //QuickFix.FIX44.NewOrderSingle ord1 = new QuickFix.FIX44.NewOrderSingle();
+
+                        
+                        QuickFix.FIX44.NewOrderSingle ord1 = new QuickFix.FIX44.NewOrderSingle(
+                            new ClOrdID(r.Id.ToString()),
+                            new Symbol(r.Ticker),
+                            new Side(s),
+                            new TransactTime(DateTime.Now)
+                            //ordType
+                            );
+                        
+                        ord1.SetField(new NoTradingSessions(1));
+
+
+                        ord1.Set(ordType);
+                        ord1.Set(new HandlInst('1'));
+                        ord1.Set(new OrderQty(r.Quantity.Value));
+                        if(!string.IsNullOrEmpty(r.Board)) ord1.Set(new TradingSessionID(r.Board));
+
+                        s = ' ';
+                        if (r.TimeInForce.ToUpper() == "DAY") s = TimeInForce.DAY;
+                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_DATE") s = TimeInForce.GOOD_TILL_DATE;
+                        else if (r.TimeInForce.ToUpper() == "IMMEDIATE_OR_CANCEL") s = TimeInForce.IMMEDIATE_OR_CANCEL;
+                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_CANCEL") s = TimeInForce.GOOD_TILL_CANCEL;
+                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_CROSSING") s = TimeInForce.GOOD_TILL_CROSSING;
+                        else if (r.TimeInForce.ToUpper() == "FILL_OR_KILL") s = TimeInForce.FILL_OR_KILL;
+                        else
+                        {
+                            //здесь нужно ставить логирование
+                            continue;
+                        }
+                        ord1.Set(new TimeInForce(s));
+                        if (r.TimeInForce.ToUpper() == "GOOD_TILL_DATE")
+                            ord1.Set(new ExpireDate(r.ExpirationDate.Value.ToString("yyyyMMdd")));
+
+                        if (ordType.Value == OrdType.LIMIT || ordType.Value == OrdType.STOP_LIMIT)
+                            ord1.Set(new Price(r.Price.Value));
+
+                        if (r.MaxFloor is not null)
+                        {
+                            if (r.MaxFloor > 0) ord1.Set(new MaxFloor(r.MaxFloor.Value));
+                        }
+
+                        ord1.Set(new Account(r.Acc));
+
+                        ord1.SetField(new NoTradingSessions(1));
+                        var sessionGroup1 = new QuickFix.FIX44.NewOrderSingle.NoTradingSessionsGroup();
+                        sessionGroup1.SetField(new TradingSessionID(r.Board));
+                        ord1.AddGroup(sessionGroup1);
+
+                        ord1.Header.GetString(Tags.BeginString);
+
+                        SendMessage(ord1);
+
+                    }
+
                 }
-                //rz.ExecuteUpdate(r => r.SetProperty(r1 => r1.Processed_Status, r1 => "processed")
-                //.SetProperty(r1 => r1.Processed_Time, r1 => DateTime.Now));
                 rz.ForEach(r => { r.Processed_Status = "processed"; r.Processed_Time = DateTime.Now; });
 
                 db.SaveChanges();

@@ -39,8 +39,8 @@ namespace TradeClient
         public string? Comments { get; set; }
         public string? Isin { get; set; }
         
-        public string Acc { get; set; }
-        public string Investor { get; set; }
+        public string? Acc { get; set; }
+        public string? Investor { get; set; }
         public byte? IsMMOrder { get; set; }
         public string? SenderSubID { get; set; }
         public string? TimeInForce { get; set; }

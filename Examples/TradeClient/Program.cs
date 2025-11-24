@@ -38,10 +38,10 @@ namespace TradeClient
                 DailyLogger.Log($"[TaskScheduler] Unobserved task exception: {args.Exception.Message}");
             };
             #if DEBUG
-                ADAPTER =  "aix"; // "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy
-            #endif
+                ADAPTER = "kaseSpot"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy kaseCurrDropCopy kaseSpot kaseSpotDropCopy
+#endif
 
-            try{ADAPTER = args[0]; }catch(Exception ex){}
+            try {ADAPTER = args[0]; }catch(Exception ex){}
             //try{ISREAL = byte.Parse(args[1]); }catch(Exception ex){}
             /*string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body><dlws:submitGetHistoryResponse xmlns='http://services.bloomberg.com/datalicense/dlws/ps/20071001' xmlns:dlws=\"http://services.bloomberg.com/datalicense/dlws/ps/20071001\" xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\"><dlws:statusCode><dlws:code>0</dlws:code><dlws:description>Success</dlws:description></dlws:statusCode><dlws:requestId>4804a8c6-ec8e-43f9-96f1-02fa1de4a9a9</dlws:requestId><dlws:responseId>1745944921-1970589519</dlws:responseId></dlws:submitGetHistoryResponse></soap:Body></soap:Envelope>";
             var obj = BloombergSoapClient.ParseHistoryResponse(xml);

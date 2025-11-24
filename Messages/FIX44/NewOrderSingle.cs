@@ -396,6 +396,20 @@ public class NewOrderSingle : Message
     public ExDestination Get(ExDestination val) { GetField(val); return val; }
     public bool IsSet(ExDestination val) { return IsSetExDestination(); }
     public bool IsSetExDestination() { return IsSetField(Tags.ExDestination); }
+    public TradingSessionID TradingSessionID
+    {
+        get
+        {
+            TradingSessionID val = new();
+            GetField(val);
+            return val;
+        }
+        set => SetField(value);
+    }
+    public void Set(TradingSessionID val) { TradingSessionID = val; }
+    public TradingSessionID Get(TradingSessionID val) { GetField(val); return val; }
+    public bool IsSet(TradingSessionID val) { return IsSetTradingSessionId(); }
+    public bool IsSetTradingSessionId() { return IsSetField(Tags.TradingSessionID); }
 
     public NoTradingSessions NoTradingSessions
     {
