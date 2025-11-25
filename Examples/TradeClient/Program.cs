@@ -9,6 +9,7 @@ using Microsoft.Identity.Client;
 using QuickFix.Logger;
 using QuickFix.Store;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
+using ClassLibrary2;
 
 namespace TradeClient
 {
@@ -38,7 +39,7 @@ namespace TradeClient
                 DailyLogger.Log($"[TaskScheduler] Unobserved task exception: {args.Exception.Message}");
             };
             #if DEBUG
-                ADAPTER = "kaseSpot"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy kaseCurrDropCopy kaseSpot kaseSpotDropCopy
+                ADAPTER = "kaseCurr"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy kaseCurr kaseCurrDropCopy kaseSpot kaseSpotDropCopy
 #endif
 
             try {ADAPTER = args[0]; }catch(Exception ex){}
@@ -125,6 +126,39 @@ namespace TradeClient
                 try{ISREAL = byte.Parse(GetValueByKey(cfg,"IsReal")); } catch(Exception ex){};
 
                 //QuickFix.SessionSettings settings = new QuickFix.SessionSettings((file);
+
+                //---------------------------------------------------------------------------------------
+                // чтение и запись переменных из файла конфигурации для использования в DataDictionary
+                string ValidateUserDefinedFields = "Y";
+                try { ValidateUserDefinedFields = GetValueByKey(cfg, "ValidateUserDefinedFields"); }
+                catch { }
+
+                string ValidateFieldsHaveValues = "N";
+                try { ValidateFieldsHaveValues = GetValueByKey(cfg, "ValidateFieldsHaveValues"); }
+                catch { }
+
+                string ValidateFieldsOutOfOrder = "N";
+                try { ValidateFieldsOutOfOrder = GetValueByKey(cfg, "ValidateFieldsOutOfOrder"); }
+                catch { }
+
+                if (ValidateUserDefinedFields == "Y") SharedData.CheckUserDefinedFields = true;
+                else SharedData.CheckUserDefinedFields = false;
+
+                if (ValidateFieldsHaveValues == "Y") SharedData.CheckFieldsHaveValues = true;
+                else SharedData.CheckFieldsHaveValues = false;
+
+                if (ValidateFieldsOutOfOrder == "Y") SharedData.CheckFieldsOutOfOrder = true;
+                else SharedData.CheckFieldsOutOfOrder = false;
+
+               
+                //---------------------------------------------------------------------------------------
+
+
+
+
+
+                //SharedData.CheckFieldsHaveValues
+
 
                 TradeClientApp application = new TradeClientApp(settings);
                 IMessageStoreFactory storeFactory = new FileStoreFactory(settings);

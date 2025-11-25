@@ -1114,6 +1114,36 @@ GO
             }
 
             }
+        
+        public void OnMessage(QuickFix.FIX44.Reject m, SessionID s)
+        {
+            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            {
+                if (isDebug) Console.WriteLine("FIX44.Reject");
+                try
+                {
+                    using (var db = new MyDbContext())
+                    {
+                        var order = new orders();
+
+                        order.orderReferenceExchange = "MsgType = 3";
+                        order.exchangeCode = Program.EXCH_CODE;
+                        order.clientID = "RefMsgType = " + m.RefMsgType.Value;
+                        order.serial = m.RefSeqNum.Value.ToString();
+                        order.executionTime = DateTime.Now;
+                        order.fullMessage = m.ToJSON();
+
+                        db.orders.Add(order);
+                        db.SaveChanges();
+                    }
+                }
+                catch (Exception e)
+                {
+                    DailyLogger.Log($"[FIX44.Reject] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                }
+            }
+
+        }
         public void OnMessage(QuickFix.FIX44.BusinessMessageReject m, SessionID s)
         {
 
@@ -1845,7 +1875,7 @@ private string GetOrdStatusName(char status)
                 new TransactTime(DateTime.Now));
 
                 //orderCancelRequest.Set(new OrderID(ord.OrigClOrderID.ToString()));
-                orderCancelRequest.Set(new OrderQty(ord.Quantity.Value));
+                orderCancelRequest.Set(new OrderQty(int.Parse(ord.Quantity.Value.ToString())));
 
                 SendMessage(orderCancelRequest);
                 
@@ -1906,7 +1936,7 @@ private string GetOrdStatusName(char status)
 
                         ord1.Set(new Symbol(r.Ticker));
                         ord1.Set(new HandlInst('1'));
-                        ord1.Set(new OrderQty(r.Quantity.Value));
+                        ord1.Set(new OrderQty(int.Parse(r.Quantity.Value.ToString())));
 
                         s = ' ';
                         if (r.TimeInForce.ToUpper() == "DAY") s = TimeInForce.DAY;
@@ -1941,8 +1971,6 @@ private string GetOrdStatusName(char status)
                     }
                     else if (Program.EXCH_CODE.Contains("KASE"))
                     {
-                        //QuickFix.FIX44.NewOrderSingle ord1 = new QuickFix.FIX44.NewOrderSingle();
-
                         
                         QuickFix.FIX44.NewOrderSingle ord1 = new QuickFix.FIX44.NewOrderSingle(
                             new ClOrdID(r.Id.ToString()),
@@ -1952,13 +1980,22 @@ private string GetOrdStatusName(char status)
                             //ordType
                             );
                         
-                        ord1.SetField(new NoTradingSessions(1));
+                        //ord1.SetField(new NoTradingSessions(1));
 
 
                         ord1.Set(ordType);
-                        ord1.Set(new HandlInst('1'));
-                        ord1.Set(new OrderQty(r.Quantity.Value));
-                        if(!string.IsNullOrEmpty(r.Board)) ord1.Set(new TradingSessionID(r.Board));
+                        //ord1.Set(new HandlInst('1'));
+                        /*
+                        if(!ok)
+                        {
+                            Console.WriteLine("Ошибка преобразования в int. Quatity = " + r.Quantity.Value.ToString());
+                            return;
+                        }
+                        */
+                        ord1.Set(new OrderQty((int)r.Quantity.Value));
+                        //decimal qty = decimal.Parse(r.Quantity.Value.ToString());
+                        //ord1.Set(new OrderQty((int)qty));
+                        //if(!string.IsNullOrEmpty(r.Board)) ord1.Set(new TradingSessionID(r.Board));
 
                         s = ' ';
                         if (r.TimeInForce.ToUpper() == "DAY") s = TimeInForce.DAY;
@@ -2011,6 +2048,7 @@ private string GetOrdStatusName(char status)
             catch(Exception err) 
             {
                 //здесь надо поставить логирование
+                Console.WriteLine(err.ToString());
             }
 
         }
@@ -2167,7 +2205,8 @@ private string GetOrdStatusName(char status)
         {
             if(isDebug) Console.WriteLine();
             if(isDebug) Console.Write("OrderQty? ");
-            return new OrderQty(Convert.ToDecimal(ReadCommand()));
+            //return new OrderQty(Convert.ToDecimal(ReadCommand()));
+            return new OrderQty(Convert.ToInt32(ReadCommand()));
         }
 
         private TimeInForce QueryTimeInForce()

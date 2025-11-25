@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Xml;
 using QuickFix.Fields;
+using ClassLibrary2;
+
 
 namespace QuickFix.DataDictionary
 {
@@ -30,13 +32,14 @@ namespace QuickFix.DataDictionary
         public bool AllowUnknownMessageFields { get; set; }
 
         public DDMap Header = new();
-        public DDMap Trailer = new();  
+        public DDMap Trailer = new();
 
+   
         public DataDictionary()
         {
-            CheckFieldsHaveValues = true;
-            CheckFieldsOutOfOrder = true;
-            CheckUserDefinedFields = true;
+            //CheckFieldsHaveValues = false; //true
+            //CheckFieldsOutOfOrder = true;
+            //CheckUserDefinedFields = true;
             AllowUnknownEnumValues = true;
             AllowUnknownMessageFields = true;
         }
@@ -49,6 +52,12 @@ namespace QuickFix.DataDictionary
             : this()
         {
             Load(path);
+
+            CheckFieldsHaveValues = SharedData.CheckFieldsHaveValues;
+            CheckFieldsOutOfOrder = SharedData.CheckFieldsOutOfOrder;
+            CheckUserDefinedFields = SharedData.CheckUserDefinedFields;
+
+
         }
 
         /// <summary>

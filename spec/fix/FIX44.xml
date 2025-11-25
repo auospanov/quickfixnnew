@@ -4492,7 +4492,8 @@
     <field number="134" name="BidSize" type="QTY" />
     <field number="135" name="OfferSize" type="QTY" />
     <field number="136" name="NoMiscFees" type="NUMINGROUP" />
-    <field number="137" name="MiscFeeAmt" type="AMT" />
+	  <!-- Changed 137 from AMT -->
+	  <field number="137" name="MiscFeeAmt" type="AMT"/>
     <field number="138" name="MiscFeeCurr" type="CURRENCY" />
     <field number="139" name="MiscFeeType" type="STRING">
       <value enum="1" description="REGULATORY" />

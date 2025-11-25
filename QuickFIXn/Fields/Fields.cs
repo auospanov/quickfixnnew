@@ -886,13 +886,13 @@ public sealed class OrderID : StringField
 /// <summary>
 /// OrderQty Field
 /// </summary>
-public sealed class OrderQty : DecimalField
+public sealed class OrderQty : DecimalField  //DecimalField
 {
     public const int TAG = 38;
 
     public OrderQty()
         : base(Tags.OrderQty) {}
-    public OrderQty(Decimal val)
+    public OrderQty(Decimal val) //Decimal
         : base(Tags.OrderQty, val) {}
 }
 
@@ -2641,8 +2641,8 @@ public sealed class MiscFeeAmt : DecimalField
 
     public MiscFeeAmt()
         : base(Tags.MiscFeeAmt) {}
-    public MiscFeeAmt(Decimal val)
-        : base(Tags.MiscFeeAmt, val) {}
+    public MiscFeeAmt(Decimal? val)
+        : base(Tags.MiscFeeAmt, val==null ? 0 : val.Value) {}
 }
 
 
