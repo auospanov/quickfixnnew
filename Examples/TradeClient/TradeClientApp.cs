@@ -1969,6 +1969,75 @@ private string GetOrdStatusName(char status)
                         SendMessage(ord1);
                         
                     }
+                    else if (Program.EXCH_CODE.Contains("KASE_SPOT"))
+                    {
+                        QuickFix.FIX44.NewOrderSingle ord1 = new QuickFix.FIX44.NewOrderSingle(
+                        new ClOrdID(r.Id.ToString()),
+                        new Symbol(r.Ticker),
+                        new Side(s),
+                        new TransactTime(DateTime.Now)
+                        //ordType
+                        );
+
+                        ord1.Set(ordType);
+                        ord1.Set(new Account(r.Acc));
+
+                        s = ' ';
+                        if (r.TimeInForce.ToUpper() == "DAY") s = TimeInForce.DAY;
+                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_DATE") s = TimeInForce.GOOD_TILL_DATE;
+                        else if (r.TimeInForce.ToUpper() == "IMMEDIATE_OR_CANCEL") s = TimeInForce.IMMEDIATE_OR_CANCEL;
+                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_CANCEL") s = TimeInForce.GOOD_TILL_CANCEL;
+                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_CROSSING") s = TimeInForce.GOOD_TILL_CROSSING;
+                        else if (r.TimeInForce.ToUpper() == "FILL_OR_KILL") s = TimeInForce.FILL_OR_KILL;
+                        else
+                        {
+                            //здесь нужно ставить логирование
+                            continue;
+                        }
+                        ord1.Set(new TimeInForce(s));
+
+                        //if (r.MaxFloor is not null)
+                        //{
+                        //    if (r.MaxFloor > 0) //ord1.Set(new DisplayQty(r.MaxFloor.Value));
+                        //        ord1.SetField(new DisplayQty(r.MaxFloor.Value));
+                        //}
+
+                        ord1.Set(new OrderQty((int)r.Quantity.Value));
+                        
+                        if (ordType.Value == OrdType.LIMIT || ordType.Value == OrdType.STOP_LIMIT)
+                            ord1.Set(new Price(r.Price.Value));
+
+                        //ord1.SetField(new NoTradingSessions(1));
+
+
+                        //ord1.Set(new HandlInst('1'));
+                        
+
+                        if (r.TimeInForce.ToUpper() == "GOOD_TILL_DATE")
+                            ord1.Set(new ExpireDate(r.ExpirationDate.Value.ToString("yyyyMMdd")));
+
+
+
+                        //ord1.SetField(new NoTradingSessions(1));
+                        //var sessionGroup1 = new QuickFix.FIX44.NewOrderSingle.NoTradingSessionsGroup();
+                        //sessionGroup1.SetField(new TradingSessionID(r.Board));
+                        //ord1.AddGroup(sessionGroup1);
+
+                        ord1.SetField(new NoPartyIDs(3));
+                        var partyIdGroup = new QuickFix.FIX44.NewOrderSingle.NoPartyIDsGroup();
+                        partyIdGroup.SetField(new PartyID("STNDR"));
+                        partyIdGroup.SetField(new PartyIDSource(char.Parse(r.PartyIDSource)));
+                        partyIdGroup.SetField(new PartyRole(int.Parse(r.PartyRole)));
+                        ord1.AddGroup(partyIdGroup);
+
+
+                        ord1.Header.GetString(Tags.BeginString);
+
+                        SendMessage(ord1);
+
+                    }
+
+                
                     else if (Program.EXCH_CODE.Contains("KASE"))
                     {
                         
