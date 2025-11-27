@@ -95,5 +95,6 @@
         /// </summary>
         /// <param name="sessionID"></param>
         void OnLogon(SessionID sessionID);
+        //void ChangePassword(SessionID sessionID);
     }
 }

@@ -10,6 +10,8 @@ using QuickFix.Logger;
 using QuickFix.Store;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 using ClassLibrary2;
+using Newtonsoft.Json;
+using QuickFix.Fields;
 
 namespace TradeClient
 {
@@ -21,6 +23,10 @@ namespace TradeClient
         public static string EXCH_CODE = ""; //к какой бирже относится
         public static string urlService = "";
         public static string urlServiceAuthorization = "";
+        //public static string changePasswordDay = "";
+        public static bool isChangePassword=false;
+        public static string tmpPassword = string.Empty;
+
         [STAThread]
         static void Main(string[] args)
         {
@@ -39,7 +45,7 @@ namespace TradeClient
                 DailyLogger.Log($"[TaskScheduler] Unobserved task exception: {args.Exception.Message}");
             };
             #if DEBUG
-                ADAPTER = "kaseSpot"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy kaseCurr kaseCurrDropCopy kaseSpot kaseSpotDropCopy
+                ADAPTER = "kaseCurr"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy kaseCurr kaseCurrDropCopy kaseSpot kaseSpotDropCopy
 #endif
 
             try {ADAPTER = args[0]; }catch(Exception ex){}
@@ -120,9 +126,18 @@ namespace TradeClient
                     Environment.Exit(0);
                 }
                 urlService = GetValueByKey(cfg,"urlService");  
-                urlServiceAuthorization = GetValueByKey(cfg,"urlServiceAuthorization"); 
-                
-                try{EXCH_CODE = GetValueByKey(cfg,"ExchangeCode"); } catch(Exception ex){};
+                urlServiceAuthorization = GetValueByKey(cfg,"urlServiceAuthorization");
+                string changePasswordDay = GetValueByKey(cfg, "changePasswordDay");
+                if (changePasswordDay != null)
+                {
+                    bool ok = int.TryParse(changePasswordDay, out int numDay);
+                    if (ok)
+                    {
+                        if ((int)DateTime.Today.DayOfWeek == numDay) isChangePassword = true;
+                    }
+                }
+
+                try {EXCH_CODE = GetValueByKey(cfg,"ExchangeCode"); } catch(Exception ex){};
                 try{ISREAL = byte.Parse(GetValueByKey(cfg,"IsReal")); } catch(Exception ex){};
 
                 //QuickFix.SessionSettings settings = new QuickFix.SessionSettings((file);
@@ -182,22 +197,85 @@ namespace TradeClient
         }
 
         public static string GetValueByKey(string fileContent, string key)
-{
-    var lines = fileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        {
+            var lines = fileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
-    foreach (var line in lines)
-    {
-        var trimmed = line.Trim();
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
 
-        if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
-            continue;
+                if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
+                    continue;
 
-        var parts = trimmed.Split(new[] { '=' }, 2);
-        if (parts.Length == 2 && parts[0].Trim().Equals(key, StringComparison.OrdinalIgnoreCase))
-            return parts[1].Trim();
-    }
+                var parts = trimmed.Split(new[] { '=' }, 2);
+                if (parts.Length == 2 && parts[0].Trim().Equals(key, StringComparison.OrdinalIgnoreCase))
+                    return parts[1].Trim();
+            }
 
-    return null; // вернёт null, если ключ не найден
-}
+            return null; // вернёт null, если ключ не найден
+        }
+        public static bool checkNewPassword(string password)
+        {
+            try
+            {
+                string t1 = GetValueByKey(cfg, "oldPasswords");
+                if(string.IsNullOrEmpty(t1))
+                {
+                    return false;
+                }
+                //List<string> oldPasswords = (List<string>)JsonConvert.DeserializeObject(t1);
+                //var k1 = JsonConvert.DeserializeObject(t1);
+                //var t2 = k1.GetType();
+                var r1 = System.Text.Json.JsonSerializer.Deserialize<List<string>>(t1);
+                if (r1.Contains(password)) return false;
+                tmpPassword = password;
+                return true;
+
+            }
+            catch { return false; }
+
+        }
+        public static void recNewPassword()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(tmpPassword)) return;
+                //чтение конфигурационного файла построчно
+                string[] lines = File.ReadAllLines("fix_" + ADAPTER + ".cfg");
+                //строка с текущим паролем
+                string? pswLine = lines.Where(r => r.StartsWith("Password=")).FirstOrDefault();
+                if(pswLine==null) return;
+                string lastPassword = GetValueByKey(cfg, "Password");
+                pswLine = "Password=" + tmpPassword;
+                //строка с предыдущими 10-тью паролями
+                string? oldPasswords = lines.Where(r => r.StartsWith("oldPasswords=")).FirstOrDefault();
+                if(oldPasswords==null)
+                {
+                    // Запись обратно. Без строки старых паролей
+                    File.WriteAllLines("fix_" + ADAPTER + ".cfg", lines);
+                    return;
+                }
+                List<string> lstPsw = System.Text.Json.JsonSerializer.Deserialize<List<string>>(oldPasswords);
+                //если старых паролей меньше 10, то дописываем последний пароль
+                if (lastPassword != null)
+                {
+                    if (lstPsw.Count() < 10)
+                    {
+                        lstPsw.Add(tmpPassword);
+                    }
+                    else
+                    {
+                        lstPsw.RemoveAt(0);
+                        lstPsw.Add(tmpPassword);
+                    }
+                }
+                oldPasswords = System.Text.Json.JsonSerializer.Serialize<List<string>>(lstPsw);
+                //запись обновленного конфигурационного файла
+                File.WriteAllLines("fix_" + ADAPTER + ".cfg", lines);
+
+            }
+            catch { }
+            return;
+        }
     }
 }

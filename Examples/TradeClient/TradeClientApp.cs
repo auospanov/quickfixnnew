@@ -12,6 +12,7 @@ using System.Drawing;
 using System.Globalization;
 using System.Linq;
 using System.Runtime;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -313,20 +314,43 @@ GO
         public void FromAdmin(Message message, SessionID sessionId) 
         {
             if(isDebug) Console.WriteLine("FromAdmin - " + message.ToString());
-            
-            if(message is QuickFix.FIXT11.Heartbeat)
-                try 
-                { 
+
+            if (message is QuickFix.FIXT11.Heartbeat)
+            {
+                try
+                {
                     using (var db = new MyDbContext())
                     {
-                        db.heartbeat.Add(new heartbeat() {  exchangeCode = Program.ADAPTER, lastTime  =DateTime.Now, isReal = Program.ISREAL, isMM = 0});
+                        db.heartbeat.Add(new heartbeat() { exchangeCode = Program.ADAPTER, lastTime = DateTime.Now, isReal = Program.ISREAL, isMM = 0 });
                         db.SaveChanges();
                     }
                 }
-                catch(Exception e) 
+                catch (Exception e)
                 {
                     DailyLogger.Log($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(message));
                 }
+            }
+            else if (message is QuickFix.FIX44.Logon logon)
+            {
+                //если сегодня меняется пароль
+                if(Program.isChangePassword)
+                {
+                    string rz58 = string.Empty;
+                    try { rz58 = logon.GetString(58); }
+                    catch { }
+                    //если найден тег 58, то проверка на код "209" - пароль изменен успешно
+                    if(rz58.Contains("209"))
+                    {
+                        //запись в конфигурационный файл нового пароля
+                        Program.recNewPassword();
+                    }
+
+                }
+                //string oldPwd = logon.GetString(554); // Password
+                
+                
+
+            }
         }
         public void ToAdmin(Message message, SessionID sessionId) 
         {
@@ -349,6 +373,14 @@ GO
                 else
                 {
                     if (isDebug) Console.WriteLine("Username or Password not found in settings");
+                }
+                if (Program.isChangePassword)
+                {
+                    string newPassword = GenerateNewPassword();
+                    //Program.checkNewPassword(newPassword);
+                    newPassword = "1111qwer";
+
+                    message.SetField(new NewPassword(newPassword));
                 }
                 //временно добавил 07.11.2025
                 if (sessionConfig.Has("ResetSeqNumFlag"))
@@ -2025,7 +2057,7 @@ private string GetOrdStatusName(char status)
 
                         ord1.SetField(new NoPartyIDs(3));
                         var partyIdGroup = new QuickFix.FIX44.NewOrderSingle.NoPartyIDsGroup();
-                        partyIdGroup.SetField(new PartyID("STNDR"));
+                        partyIdGroup.SetField(new PartyID(r.SenderSubID));
                         partyIdGroup.SetField(new PartyIDSource(char.Parse(r.PartyIDSource)));
                         partyIdGroup.SetField(new PartyRole(int.Parse(r.PartyRole)));
                         ord1.AddGroup(partyIdGroup);
@@ -2121,6 +2153,31 @@ private string GetOrdStatusName(char status)
             }
 
         }
+        public static string GenerateNewPassword(int length=8)
+        {
+            if (length <= 0)
+                throw new ArgumentException("Длина строки должна быть больше нуля.", nameof(length));
+
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            char[] result = new char[length];
+
+            // Буфер для случайных байтов
+            byte[] randomBytes = new byte[length];
+
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(randomBytes);
+            }
+
+            for (int i = 0; i < length; i++)
+            {
+                // Преобразуем случайный байт в индекс символа
+                result[i] = chars[randomBytes[i] % chars.Length];
+            }
+
+            return new string(result);
+        }
+      
 
         #region Message creation functions
         private QuickFix.FIX44.NewOrderSingle QueryNewOrderSingle44()
