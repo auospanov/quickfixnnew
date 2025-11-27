@@ -336,20 +336,17 @@ GO
                 if(Program.isChangePassword)
                 {
                     string rz58 = string.Empty;
-                    try { rz58 = logon.GetString(58); }
+                    try { rz58 = logon.GetString(1409); }
                     catch { }
                     //если найден тег 58, то проверка на код "209" - пароль изменен успешно
-                    if(rz58.Contains("209"))
+                    if(rz58 == "0")
                     {
                         //запись в конфигурационный файл нового пароля
                         Program.recNewPassword();
                     }
 
                 }
-                //string oldPwd = logon.GetString(554); // Password
-                
-                
-
+       
             }
         }
         public void ToAdmin(Message message, SessionID sessionId) 
@@ -377,8 +374,13 @@ GO
                 if (Program.isChangePassword)
                 {
                     string newPassword = GenerateNewPassword();
-                    //Program.checkNewPassword(newPassword);
-                    newPassword = "1111qwer";
+                    bool ok = false;
+                    while (!ok)
+                    {
+                        newPassword = GenerateNewPassword();
+                        ok = Program.checkNewPassword(newPassword);
+                    }
+                    //newPassword = "4444qwer";
 
                     message.SetField(new NewPassword(newPassword));
                 }

@@ -240,42 +240,46 @@ namespace TradeClient
             try
             {
                 if (string.IsNullOrEmpty(tmpPassword)) return;
-                //чтение конфигурационного файла построчно
-                string[] lines = File.ReadAllLines("fix_" + ADAPTER + ".cfg");
-                //строка с текущим паролем
-                string? pswLine = lines.Where(r => r.StartsWith("Password=")).FirstOrDefault();
-                if(pswLine==null) return;
-                string lastPassword = GetValueByKey(cfg, "Password");
-                pswLine = "Password=" + tmpPassword;
-                //строка с предыдущими 10-тью паролями
-                string? oldPasswords = lines.Where(r => r.StartsWith("oldPasswords=")).FirstOrDefault();
-                if(oldPasswords==null)
-                {
-                    // Запись обратно. Без строки старых паролей
-                    File.WriteAllLines("fix_" + ADAPTER + ".cfg", lines);
-                    return;
-                }
-                List<string> lstPsw = System.Text.Json.JsonSerializer.Deserialize<List<string>>(oldPasswords);
-                //если старых паролей меньше 10, то дописываем последний пароль
-                if (lastPassword != null)
-                {
-                    if (lstPsw.Count() < 10)
-                    {
-                        lstPsw.Add(tmpPassword);
-                    }
-                    else
-                    {
-                        lstPsw.RemoveAt(0);
-                        lstPsw.Add(tmpPassword);
-                    }
-                }
-                oldPasswords = System.Text.Json.JsonSerializer.Serialize<List<string>>(lstPsw);
-                //запись обновленного конфигурационного файла
-                File.WriteAllLines("fix_" + ADAPTER + ".cfg", lines);
 
+                string path = "fix_" + ADAPTER + ".cfg";
+                string[] lines = File.ReadAllLines(path);
+
+                // индекс строки с текущим паролем
+                int pswIndex = Array.FindIndex(lines, r => r.StartsWith("Password="));
+                if (pswIndex == -1) return;
+
+                lines[pswIndex] = "Password=" + tmpPassword;
+
+                // индекс строки со старыми паролями
+                int oldIndex = Array.FindIndex(lines, r => r.StartsWith("oldPasswords="));
+                if (oldIndex != -1)
+                {
+                    string oldPasswordsRaw = lines[oldIndex].Replace("oldPasswords=", "");
+                    List<string>? lstPsw = System.Text.Json.JsonSerializer.Deserialize<List<string>>(oldPasswordsRaw);
+
+                    if (lstPsw != null)
+                    {
+                        if (lstPsw.Count < 10)
+                        {
+                            lstPsw.Add(tmpPassword); // добавляем новый пароль
+                        }
+                        else
+                        {
+                            lstPsw.RemoveAt(0);
+                            lstPsw.Add(tmpPassword);
+                        }
+
+                        string serialized = System.Text.Json.JsonSerializer.Serialize(lstPsw);
+                        lines[oldIndex] = "oldPasswords=" + serialized;
+                    }
+                }
+
+                File.WriteAllLines(path, lines);
             }
-            catch { }
-            return;
+            catch (Exception ex)
+            {
+                Console.WriteLine("Ошибка при обновлении пароля: " + ex.Message);
+            }
         }
     }
 }
