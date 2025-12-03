@@ -2136,6 +2136,104 @@ private string GetOrdStatusName(char status)
                         SendMessage(ord1);
 
                     }
+                    else if (Program.EXCH_CODE == "ITS")
+                    {
+                        QuickFix.FIX50SP2.NewOrderSingle ord1 = new QuickFix.FIX50SP2.NewOrderSingle();
+                        ord1.SetField(new ClOrdID(r.Id.ToString()));
+                        ord1.SetField(new TransactTime(DateTime.Now));
+                        ord1.SetField(new ExDestination("0"));
+                        if(string.IsNullOrEmpty(r.Ticker))
+                        {
+                            Console.WriteLine("Не указан тикер в таблице newOrders. Id записи = " + r.Id);
+                            continue;
+                        }
+                        ord1.SetField(new SecurityID(r.Ticker));
+                        ord1.SetField(new Side(s));
+                        ord1.SetField(ordType);
+                        s = ' ';
+                        if (r.TimeInForce.ToUpper() == "DAY") s = TimeInForce.DAY;
+                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_DATE") s = TimeInForce.GOOD_TILL_DATE;
+                        else if (r.TimeInForce.ToUpper() == "IMMEDIATE_OR_CANCEL") s = TimeInForce.IMMEDIATE_OR_CANCEL;
+                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_CANCEL") s = TimeInForce.GOOD_TILL_CANCEL;
+                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_CROSSING") s = TimeInForce.GOOD_TILL_CROSSING;
+                        else if (r.TimeInForce.ToUpper() == "FILL_OR_KILL") s = TimeInForce.FILL_OR_KILL;
+                        else
+                        {
+                            Console.WriteLine("Неверно указано поле TimeInForce . Id записи = " + r.Id);
+                            //здесь нужно ставить логирование
+                            continue;
+                        }
+                        ord1.Set(new TimeInForce(s));
+                        if (ordType.Value == OrdType.LIMIT || ordType.Value == OrdType.STOP_LIMIT)
+                        {
+                            if(r.Price==null)
+                            {
+                                Console.WriteLine("Не задано значение Price . Id записи = " + r.Id);
+                                //здесь нужно ставить логирование
+                                continue;
+                            }
+                            ord1.Set(new Price(r.Price.Value));
+                        }
+                        if (r.Quantity == null)
+                        {
+                            Console.WriteLine("Не задано значение Quantity. Id записи = " + r.Id);
+                            //здесь нужно ставить логирование
+                            continue;
+                        }
+                        ord1.SetField(new OrderQty(int.Parse(r.Quantity.Value.ToString())));
+                        if(string.IsNullOrEmpty(r.Investor))
+                        {
+                            Console.WriteLine("Не задано значение Investor. Id записи = " + r.Id);
+                            //здесь нужно ставить логирование
+                            continue;
+                        }
+                        ord1.SetField(new Account(r.Investor));
+                        ord1.Header.GetString(Tags.BeginString);
+
+                        /*
+                        QuickFix.FIX50SP2.NewOrderSingle ord1 = new QuickFix.FIX50SP2.NewOrderSingle(
+                            new ClOrdID(r.Id.ToString()),
+                            new Side(s),
+                            new TransactTime(DateTime.Now),
+                            ordType
+                            );
+
+                        ord1.Set(new Symbol(r.Ticker));
+                        ord1.Set(new HandlInst('1'));
+                        ord1.Set(new OrderQty(int.Parse(r.Quantity.Value.ToString())));
+
+                        s = ' ';
+                        if (r.TimeInForce.ToUpper() == "DAY") s = TimeInForce.DAY;
+                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_DATE") s = TimeInForce.GOOD_TILL_DATE;
+                        else if (r.TimeInForce.ToUpper() == "IMMEDIATE_OR_CANCEL") s = TimeInForce.IMMEDIATE_OR_CANCEL;
+                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_CANCEL") s = TimeInForce.GOOD_TILL_CANCEL;
+                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_CROSSING") s = TimeInForce.GOOD_TILL_CROSSING;
+                        else if (r.TimeInForce.ToUpper() == "FILL_OR_KILL") s = TimeInForce.FILL_OR_KILL;
+                        else
+                        {
+                            //здесь нужно ставить логирование
+                            continue;
+                        }
+                        ord1.Set(new TimeInForce(s));
+                        if (r.TimeInForce.ToUpper() == "GOOD_TILL_DATE")
+                            ord1.Set(new ExpireDate(r.ExpirationDate.Value.ToString("yyyyMMdd")));
+
+                        if (ordType.Value == OrdType.LIMIT || ordType.Value == OrdType.STOP_LIMIT)
+                            ord1.Set(new Price(r.Price.Value));
+
+                        if (r.MaxFloor is not null)
+                        {
+                            if (r.MaxFloor > 0) ord1.Set(new MaxFloor(r.MaxFloor.Value));
+                        }
+
+                        ord1.Set(new Account(r.Investor));
+                        ord1.Set(new OrderCapacity(r.Acc));
+                        ord1.Header.GetString(Tags.BeginString);
+                        */
+
+                        SendMessage(ord1);
+
+                    }
 
                 }
                 rz.ForEach(r => { r.Processed_Status = "processed"; r.Processed_Time = DateTime.Now; });
