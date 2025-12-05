@@ -18,6 +18,7 @@ namespace TradeClient
         public DbSet<instrsView> instrsView { get; set; }
         public DbSet<settingsTP> settingsTP { get; set; }
         public DbSet<NewOrders> NewOrders { get; set; }
+        public DbSet<tradeCapture> TradeCapture { get; set; }
         
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -46,6 +47,7 @@ namespace TradeClient
                entity.HasNoKey();
            });
             modelBuilder.Entity<NewOrders>().ToTable(nameof(NewOrders), t => t.ExcludeFromMigrations());
+            modelBuilder.Entity<tradeCapture>().ToTable(nameof(tradeCapture), t => t.ExcludeFromMigrations());
         }
     }
 }

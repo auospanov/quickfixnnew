@@ -361,9 +361,9 @@ GO
                     message.SetField(new QuickFix.Fields.Password(sessionConfig.GetString("Password")));
                     if (isDebug) Console.WriteLine($"Injected Username/Password for session {sessionId}");
                 }
-                else if (sessionConfig.Has("SenderCompID") && sessionConfig.Has("Password"))
+                else if (sessionConfig.Has("Password")) //(sessionConfig.Has("SenderCompID") && 
                 {
-                    message.SetField(new QuickFix.Fields.Username(sessionConfig.GetString("SenderCompID")));
+                    //message.SetField(new QuickFix.Fields.Username(sessionConfig.GetString("SenderCompID")));
                     message.SetField(new QuickFix.Fields.Password(sessionConfig.GetString("Password")));
                     if (isDebug) Console.WriteLine($"Injected Username/Password for session {sessionId}");
                 }
@@ -1249,6 +1249,101 @@ GO
                 }
             }
             
+        }
+        public void OnMessage(QuickFix.FIX44.TradeCaptureReport m, SessionID s)
+        {
+            try
+            {
+                using (var db = new MyDbContext())
+                {
+                    tradeCapture tc = new tradeCapture();
+                    tc.TradeReportID = m.TradeReportID.Value;
+                    if (m.IsSetField(818)) tc.SecondaryTradeReportID = m.SecondaryTradeReportID.Value;
+                    tc.ExecType = m.ExecType.Value.ToString();
+                    tc.ExecID = m.ExecID.Value;
+                    tc.LastQty = m.LastQty.Value.ToString();
+                    tc.LastPx = m.LastPx.Value.ToString();
+                    if (m.IsSetField(1056)) tc.CalculatedCcyLastQty = m.GetString(1056);
+                    tc.TradeDate = m.TradeDate.Value;
+                    tc.TransactTime=m.TransactTime.Value.ToString();
+                    if (m.IsSetField(64)) tc.SettlDate = m.SettlDate.Value;
+                    if (m.IsSetField(5459)) tc.OptionSettlType=m.GetString(5459);
+                    //если есть группа NoSides
+                    if(m.IsSetNoSides())
+                    {
+                        int sidesCount = m.NoSides.Value; //m.GetInt(552);
+                        for (int i = 0; i < sidesCount; i++)
+                        {
+                            // Получаем группу по индексу
+                            QuickFix.FIX44.TradeCaptureReport.NoSidesGroup sideGroup =
+                                new QuickFix.FIX44.TradeCaptureReport.NoSidesGroup();
+                            m.GetGroup(i, sideGroup);
+                            // Читаем поля внутри группы
+                            if (sideGroup.IsSetSide())
+                            {
+                                // Side (54) — char
+                                var sideField = new Side();
+                                sideGroup.GetField(sideField);
+                                tc.Side = sideField.Value.ToString();
+                            }
+                            else if (sideGroup.IsSetOrderID())
+                            {
+                                var orderIdField = new OrderID();
+                                sideGroup.GetField(orderIdField);
+                                tc.OrderID = orderIdField.Value.ToString();
+                            }
+                            else if (sideGroup.IsSetClOrdID())
+                            {
+                                var clOrderIdField = new ClOrdID();
+                                sideGroup.GetField(clOrderIdField);
+                                tc.ClOrdID = clOrderIdField.Value.ToString();
+                            }
+                            else if (sideGroup.IsSetSecondaryClOrdID())
+                            {
+                                var secClOrderIdField = new SecondaryClOrdID();
+                                sideGroup.GetField(secClOrderIdField);
+                                tc.SecondaryClOrdID = secClOrderIdField.Value.ToString();
+                            }
+                          
+                        }
+                        
+
+                    }
+                    if (m.IsSetField(Tags.LastPx))
+                    {
+                        tc.Price = m.GetDecimal(Tags.LastPx).ToString();
+                    }
+                    if (m.IsSetField(640))
+                    {
+                        tc.Price2 = m.GetDecimal(640).ToString();
+                    }
+                    if (m.IsSetField(Tags.PriceType))
+                    {
+                        tc.PriceType = m.GetInt(Tags.PriceType).ToString();
+                    }
+                    if (m.IsSetField(5155))
+                    {
+                        tc.InstitutionID = m.GetString(5155);
+                    }
+                    if (m.IsSetField(6029))
+                    {
+                        tc.CurrencyCode = m.GetString(6029);
+                    }
+                    if (m.IsSetField(9580))
+                    {
+                        tc.ParentID = m.GetString(9580);
+                    }
+                    
+                    db.TradeCapture.Add(tc);
+                    db.SaveChanges();
+
+                }
+
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine("Ошибка TradeCaptureReport - " + ex.Message);
+            }
         }
 
         private string GetSideName(char side)
@@ -2180,57 +2275,20 @@ private string GetOrdStatusName(char status)
                             //здесь нужно ставить логирование
                             continue;
                         }
-                        ord1.SetField(new OrderQty(int.Parse(r.Quantity.Value.ToString())));
-                        if(string.IsNullOrEmpty(r.Investor))
-                        {
-                            Console.WriteLine("Не задано значение Investor. Id записи = " + r.Id);
-                            //здесь нужно ставить логирование
-                            continue;
-                        }
-                        ord1.SetField(new Account(r.Investor));
+                        ord1.SetField(new OrderQty((int)r.Quantity));
+                        
+                        ord1.SetField(new Account(r.Acc));
+
+                        ord1.SetField(new NoPartyIDs(3));
+                        var partyIdGroup = new QuickFix.FIX50SP2.NewOrderSingle.NoPartyIDsGroup();
+                        partyIdGroup.SetField(new PartyID(r.SenderSubID));
+                        partyIdGroup.SetField(new PartyIDSource(char.Parse(r.PartyIDSource)));
+                        partyIdGroup.SetField(new PartyRole(int.Parse(r.PartyRole)));
+                        ord1.AddGroup(partyIdGroup);
+
                         ord1.Header.GetString(Tags.BeginString);
 
-                        /*
-                        QuickFix.FIX50SP2.NewOrderSingle ord1 = new QuickFix.FIX50SP2.NewOrderSingle(
-                            new ClOrdID(r.Id.ToString()),
-                            new Side(s),
-                            new TransactTime(DateTime.Now),
-                            ordType
-                            );
-
-                        ord1.Set(new Symbol(r.Ticker));
-                        ord1.Set(new HandlInst('1'));
-                        ord1.Set(new OrderQty(int.Parse(r.Quantity.Value.ToString())));
-
-                        s = ' ';
-                        if (r.TimeInForce.ToUpper() == "DAY") s = TimeInForce.DAY;
-                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_DATE") s = TimeInForce.GOOD_TILL_DATE;
-                        else if (r.TimeInForce.ToUpper() == "IMMEDIATE_OR_CANCEL") s = TimeInForce.IMMEDIATE_OR_CANCEL;
-                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_CANCEL") s = TimeInForce.GOOD_TILL_CANCEL;
-                        else if (r.TimeInForce.ToUpper() == "GOOD_TILL_CROSSING") s = TimeInForce.GOOD_TILL_CROSSING;
-                        else if (r.TimeInForce.ToUpper() == "FILL_OR_KILL") s = TimeInForce.FILL_OR_KILL;
-                        else
-                        {
-                            //здесь нужно ставить логирование
-                            continue;
-                        }
-                        ord1.Set(new TimeInForce(s));
-                        if (r.TimeInForce.ToUpper() == "GOOD_TILL_DATE")
-                            ord1.Set(new ExpireDate(r.ExpirationDate.Value.ToString("yyyyMMdd")));
-
-                        if (ordType.Value == OrdType.LIMIT || ordType.Value == OrdType.STOP_LIMIT)
-                            ord1.Set(new Price(r.Price.Value));
-
-                        if (r.MaxFloor is not null)
-                        {
-                            if (r.MaxFloor > 0) ord1.Set(new MaxFloor(r.MaxFloor.Value));
-                        }
-
-                        ord1.Set(new Account(r.Investor));
-                        ord1.Set(new OrderCapacity(r.Acc));
-                        ord1.Header.GetString(Tags.BeginString);
-                        */
-
+          
                         SendMessage(ord1);
 
                     }

@@ -58,6 +58,61 @@ namespace TradeClient
         public string? PartyRole { get; set; }
         public decimal? MaxFloor { get; set; }
     }
+    public class tradeCapture
+    {
+        public int ID { get; set; }
+        public DateTime? INPDATE { get; set; }
+        public byte? isReal { get; set; }
+        public string? ClOrdID { get; set; }
+        public byte? sendToAIS { get; set; }
+        public DateTime? sendToAIStime { get; set; }
+        public string? clientID { get; set; }
+        public string? orderID_AIS { get; set; }
+        public string? Account { get; set; }
+        public string? exchangeCode { get; set; }
+        public string? Side { get; set; }
+        public string? ticker { get; set; }
+        public string? board { get; set; }
+        public string? UnderlyingSymbol { get; set; }
+        public string? TradeReportID { get; set; }
+        public string? TrdType { get; set; }
+        public string? TrdSubType { get; set; }
+        public string? SecondaryTradeReportID { get; set; }
+        public string? ExecType { get; set; }
+        public string? ExecID { get; set; }
+        public string? LastQty { get; set; }
+        public string? LastPx { get; set; }
+        public string? CalculatedCcyLastQty { get; set; }
+        public string? TradeDate { get; set; }
+        public string? TransactTime { get; set; }
+        public string? SettlDate { get; set; }
+        public string? OptionSettlType { get; set; }
+        public string? OrderID { get; set; }
+        public string? SecondaryClOrdID { get; set; }
+        public string? TradingSessionSubID { get; set; }
+        public string? GrossTradeAmt { get; set; }
+        public string? AccruedInterestAmt { get; set; }
+        public string? SettlCurrAmt { get; set; }
+        public string? EndAccruedInterestAmt { get; set; }
+        public string? StartCash { get; set; }
+        public string? EndCash { get; set; }
+        public string? MiscFeeAmt_Exchange { get; set; }
+        public string? MiscFeeAmt_Clearing { get; set; }
+        public string? MiscFeeAmt_Access { get; set; }
+        public string? SettlInstID { get; set; }
+        public string? Price2 { get; set; }
+        public string? Price { get; set; }
+        public string? PriceType { get; set; }
+        public string? InstitutionID { get; set; }
+        public string? CurrencyCode { get; set; }
+        public string? ClientAccID { get; set; }
+        public string? ParentID { get; set; }
+        public string? StartDate { get; set; }
+        public string? EndDate { get; set; }
+        public string? Yield { get; set; }
+        public string? Commission { get; set; }
+        public string? CommType { get; set; }
+    }
 
 
 }
