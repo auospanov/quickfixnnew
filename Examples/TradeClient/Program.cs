@@ -45,7 +45,7 @@ namespace TradeClient
                 DailyLogger.Log($"[TaskScheduler] Unobserved task exception: {args.Exception.Message}");
             };
             #if DEBUG
-                ADAPTER = "its"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy kaseCurr kaseCurrDropCopy kaseSpot kaseSpotDropCopy its
+                ADAPTER = "kaseCurrDropCopy"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy kaseCurr kaseCurrDropCopy kaseSpot kaseSpotDropCopy its
 #endif
 
             try {ADAPTER = args[0]; }catch(Exception ex){}
@@ -274,7 +274,7 @@ namespace TradeClient
                     }
                 }
 
-                File.WriteAllLines(path, lines);
+                File.WriteAllLines(path, lines, System.Text.Encoding.UTF8);
             }
             catch (Exception ex)
             {
