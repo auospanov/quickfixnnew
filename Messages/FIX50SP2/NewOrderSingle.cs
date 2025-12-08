@@ -379,22 +379,7 @@ public class NewOrderSingle : Message
     public bool IsSet(MaxFloor val) { return IsSetMaxFloor(); }
     public bool IsSetMaxFloor() { return IsSetField(Tags.MaxFloor); }
 
-    public ExDestination ExDestination
-    {
-        get
-        {
-            ExDestination val = new();
-            GetField(val);
-            return val;
-        }
-        set  => SetField(value);
-    }
-
-    public void Set(ExDestination val) { ExDestination = val; }
-    public ExDestination Get(ExDestination val) { GetField(val); return val; }
-    public bool IsSet(ExDestination val) { return IsSetExDestination(); }
-    public bool IsSetExDestination() { return IsSetField(Tags.ExDestination); }
-
+    
     public NoTradingSessions NoTradingSessions
     {
         get
@@ -458,6 +443,24 @@ public class NewOrderSingle : Message
     public SymbolSfx Get(SymbolSfx val) { GetField(val); return val; }
     public bool IsSet(SymbolSfx val) { return IsSetSymbolSfx(); }
     public bool IsSetSymbolSfx() { return IsSetField(Tags.SymbolSfx); }
+
+
+    public ExDestination ExDestination
+    {
+        get
+        {
+            ExDestination val = new();
+            GetField(val);
+            return val;
+        }
+        set => SetField(value);
+    }
+
+    public void Set(ExDestination val) { ExDestination = val; }
+    public ExDestination Get(ExDestination val) { GetField(val); return val; }
+    public bool IsSet(ExDestination val) { return IsSetExDestination(); }
+    public bool IsSetExDestination() { return IsSetField(Tags.ExDestination); }
+
 
     public SecurityID SecurityID
     {

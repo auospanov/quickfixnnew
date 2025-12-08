@@ -4,6 +4,7 @@ using QuickFix;
 using QuickFix.Fields;
 using QuickFix.Logger;
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
@@ -2236,13 +2237,14 @@ private string GetOrdStatusName(char status)
                         QuickFix.FIX50SP2.NewOrderSingle ord1 = new QuickFix.FIX50SP2.NewOrderSingle();
                         ord1.SetField(new ClOrdID(r.Id.ToString()));
                         ord1.SetField(new TransactTime(DateTime.Now));
-                        ord1.SetField(new ExDestination("0"));
-                        if(string.IsNullOrEmpty(r.Ticker))
+                        if (string.IsNullOrEmpty(r.Ticker))
                         {
                             Console.WriteLine("Не указан тикер в таблице newOrders. Id записи = " + r.Id);
                             continue;
                         }
+                        ord1.SetField(new ExDestination("1001"));      //пул ликвидности                  
                         ord1.SetField(new SecurityID(r.Ticker));
+
                         ord1.SetField(new Side(s));
                         ord1.SetField(ordType);
                         s = ' ';
@@ -2279,13 +2281,50 @@ private string GetOrdStatusName(char status)
                         
                         ord1.SetField(new Account(r.Acc));
 
+
+                        //Для подачи заявок с клиентского ТКСА поля будут заполнены следующим образом
+                        //1, Account(ТКС): STDICLIENT
+                        //448, PartyId: 387
+                        //447, PartyIdSource: D
+                        //452, PartyRole: 1
+                        //448, PartyId: любой из перечисленных клиентских кодов: STDIc10 \ STDIc12 \ STDIc13
+                        //447, PartyIdSource: D
+                        //452, PartyRole: 3
+
+                        //Для подачи заявок с собственного ТКСА поля будут заполнены следующим образом
+                        //1, Account(ТКС): STDIOWN
+                        //448, PartyId: 387
+                        //447, PartyIdSource: D
+                        //452, PartyRole: 1
+                        //448, PartyId: stimk
+                        //447, PartyIdSource: D
+                        //452, PartyRole: 3
+                        
                         ord1.SetField(new NoPartyIDs(3));
+                        //первый элемент ставим хардкодом в зависимости от номера счета
+                        //второй элемент берем из таблицы                        
+
                         var partyIdGroup = new QuickFix.FIX50SP2.NewOrderSingle.NoPartyIDsGroup();
+                        if (r.Acc == "STDICLIENT")
+                        {
+                            partyIdGroup.SetField(new PartyID("387"));
+                            partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
+                            partyIdGroup.SetField(new PartyRole(int.Parse("1")));
+                            ord1.AddGroup(partyIdGroup);
+                        }
+                        else if (r.Acc == "STDIOWN")
+                        {
+                            partyIdGroup.SetField(new PartyID("387"));
+                            partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
+                            partyIdGroup.SetField(new PartyRole(int.Parse("1")));
+                            ord1.AddGroup(partyIdGroup);
+                        }
                         partyIdGroup.SetField(new PartyID(r.SenderSubID));
                         partyIdGroup.SetField(new PartyIDSource(char.Parse(r.PartyIDSource)));
                         partyIdGroup.SetField(new PartyRole(int.Parse(r.PartyRole)));
                         ord1.AddGroup(partyIdGroup);
 
+                        
                         ord1.Header.GetString(Tags.BeginString);
 
           
