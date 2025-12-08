@@ -2311,26 +2311,72 @@ private string GetOrdStatusName(char status)
             }
 
         }
-        public static string GenerateNewPassword(int length=8)
+        //public static string GenerateNewPassword(int length=8)
+        //{
+        //    if (length <= 0)
+        //        throw new ArgumentException("Длина строки должна быть больше нуля.", nameof(length));
+
+        //    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        //    char[] result = new char[length];
+
+        //    // Буфер для случайных байтов
+        //    byte[] randomBytes = new byte[length];
+
+        //    using (var rng = RandomNumberGenerator.Create())
+        //    {
+        //        rng.GetBytes(randomBytes);
+        //    }
+
+        //    for (int i = 0; i < length; i++)
+        //    {
+        //        // Преобразуем случайный байт в индекс символа
+        //        result[i] = chars[randomBytes[i] % chars.Length];
+        //    }
+
+        //    return new string(result);
+        //}
+
+
+        public static string GenerateNewPassword(int length = 8)
         {
-            if (length <= 0)
-                throw new ArgumentException("Длина строки должна быть больше нуля.", nameof(length));
+            if (length < 3) // минимум 3 символа, чтобы вместить все категории
+                throw new ArgumentException("Длина пароля должна быть не меньше 3.", nameof(length));
 
-            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            const string upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const string lower = "abcdefghijklmnopqrstuvwxyz";
+            const string digits = "0123456789";
+            const string allChars = upper + lower + digits;
+
             char[] result = new char[length];
+            RandomNumberGenerator rng = RandomNumberGenerator.Create();
 
-            // Буфер для случайных байтов
-            byte[] randomBytes = new byte[length];
-
-            using (var rng = RandomNumberGenerator.Create())
+            // Функция для выбора случайного символа из строки
+            char GetRandomChar(string chars)
             {
-                rng.GetBytes(randomBytes);
+                byte[] buffer = new byte[1];
+                rng.GetBytes(buffer);
+                return chars[buffer[0] % chars.Length];
             }
 
-            for (int i = 0; i < length; i++)
+            // Обязательные символы
+            result[0] = GetRandomChar(upper);
+            result[1] = GetRandomChar(lower);
+            result[2] = GetRandomChar(digits);
+
+            // Остальные символы
+            for (int i = 3; i < length; i++)
             {
-                // Преобразуем случайный байт в индекс символа
-                result[i] = chars[randomBytes[i] % chars.Length];
+                result[i] = GetRandomChar(allChars);
+            }
+
+            // Перемешиваем массив (Fisher-Yates shuffle)
+            for (int i = result.Length - 1; i > 0; i--)
+            {
+                byte[] buffer = new byte[1];
+                rng.GetBytes(buffer);
+                int j = buffer[0] % (i + 1);
+
+                (result[i], result[j]) = (result[j], result[i]);
             }
 
             return new string(result);
