@@ -1,11 +1,13 @@
-﻿using System;
+﻿using Microsoft.EntityFrameworkCore;
+using QuickFix.Fields;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 
 namespace TradeClient
 {
@@ -112,5 +114,21 @@ namespace TradeClient
 		public string fullMessage { get;set;}
         [Precision(18, 6)]
         public decimal? maxFloor { get; set; }
+		public string? ExDestination { get;set;}
+        [Precision(18, 6)]
+        public decimal price1 { get; set; }
+        public int? ordRejReason { get; set; }
+		public string? refOrderId { get; set; }
+
+		public string? exchangeSpecialInstructions { get; set;}
+
+		public string? execType { get; set; }
+
+		public string? secondaryOrderId {  get; set; }
+		public string? lastMkt { get; set; }
+
+		public string? orderId {  get; set; }
+
+		public int? execRestatementReason {  get; set; }
     }
 }
