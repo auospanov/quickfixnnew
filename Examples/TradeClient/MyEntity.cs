@@ -130,5 +130,16 @@ namespace TradeClient
 		public string? orderId {  get; set; }
 
 		public int? execRestatementReason {  get; set; }
+		public string? partyId {  get; set; }
+
+		public string? partyIdSource {  get; set; }
+
+		public string? partyRole { get;set; }
+
+		public string? securityId { get;set; }
+
+		public string? side { get; set; }
+
+		public DateTime? transactTime { get; set; }
     }
 }

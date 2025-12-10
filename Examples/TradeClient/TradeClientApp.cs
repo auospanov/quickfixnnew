@@ -929,14 +929,22 @@ GO
                                     var partyGroup = new QuickFix.FIX50SP2.ExecutionReport.NoPartyIDsGroup();
 
                                     string partyId = partyGroup.GetString(QuickFix.Fields.Tags.PartyID);
+                                    ord.partyId = partyId;
                                     string partySource = partyGroup.GetString(QuickFix.Fields.Tags.PartyIDSource);
+                                    ord.partyIdSource = partySource;
                                     int partyRole = partyGroup.GetInt(QuickFix.Fields.Tags.PartyRole);
+                                    ord.partyRole = partyRole.ToString();
 
                                 }
 
-
                             }
-                            
+                            ord.securityId = m.SecurityID.Value;
+                            ord.side = m.Side.Value.ToString();
+                            if (m.IsSetField(59)) ord.timeInForce = m.TimeInForce.Value.ToString();
+                            ord.transactTime = m.TransactTime.Value;
+
+                            OrdersCache.Add(ord); 
+
                         }
                     }
                     else
