@@ -333,6 +333,44 @@ GO
                     DailyLogger.Log($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(message));
                 }
             }
+            else if (message is QuickFix.FIXT11.Reject m)
+            {
+                if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+                {
+                    if (isDebug) Console.WriteLine("Received BusinessMessageReject");
+                    try
+                    {
+                        using (var db = new MyDbContext())
+                        {
+                            int clOrdId = 0;
+
+                            try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
+
+                            var order = new orders();
+                            order.msgNum = int.Parse(m.Header.GetString(34));
+                            order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
+                            order.status = "REJECTED";
+                            order.clientID = "RefMsgType = " + m.RefMsgType.Value;
+                            order.executionTime = m.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime);
+                            order.fullMessage = m.ToJSON();
+                            string text = m.IsSetField(QuickFix.Fields.Tags.Text) ? m.GetString(QuickFix.Fields.Tags.Text) : string.Empty;
+                            order.comments = $"Tag={m.RefTagID}, Reason={m.SessionRejectReason} {text}";
+                            order.exchangeCode = Program.EXCH_CODE;
+                            order.serial = m.RefSeqNum.Value.ToString();
+
+                            if (clOrdId > 0) order.clientOrderID = clOrdId.ToString();
+
+                            db.orders.Add(order);
+                            db.SaveChanges();
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    }
+                }
+
+            }
             else if (message is QuickFix.FIX44.Logon logon)
             {
                 //если сегодня меняется пароль
@@ -351,6 +389,7 @@ GO
                 }
 
             }
+
         }
         public void ToAdmin(Message message, SessionID sessionId)
         {
@@ -946,6 +985,7 @@ GO
                             if (m.IsSetField(48)) ord.ticker = m.SecurityID.Value;
                             if (m.IsSetField(54)) ord.direction = GetSideName(m.Side.Value);
                             if (m.IsSetField(59)) ord.timeInForce = GetTimeInForceName(m.TimeInForce.Value);
+                            if (m.IsSetField(58)) ord.comments = m.Text.Value;
                             if (m.IsSetField(378)) ord.execRestatementReason = m.GetInt(378);
                             if (m.IsSetField(880)) ord.TrdMatchID = m.TrdMatchID.Value;
 
@@ -1210,36 +1250,6 @@ GO
             }
         }
 
-        public void OnMessage(QuickFix.FIXT11.Reject m, SessionID s)
-        {
-            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
-            {
-                if (isDebug) Console.WriteLine("FIXT11.Reject");
-                try
-                {
-                    using (var db = new MyDbContext())
-                    {
-                        var order = new orders();
-
-                        order.orderReferenceExchange = "MsgType = 3";
-                        order.exchangeCode = Program.EXCH_CODE;
-                        order.clientID = "RefMsgType = " + m.RefMsgType.Value;
-                        order.serial = m.RefSeqNum.Value.ToString();
-                        order.executionTime = DateTime.Now;
-                        order.fullMessage = m.ToJSON();
-
-                        db.orders.Add(order);
-                        db.SaveChanges();
-                    }
-                }
-                catch (Exception e)
-                {
-                    DailyLogger.Log($"[FIXT11.Reject] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
-                }
-            }
-
-            }
-        
         public void OnMessage(QuickFix.FIX44.Reject m, SessionID s)
         {
             if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
@@ -1269,6 +1279,7 @@ GO
             }
 
         }
+                
         public void OnMessage(QuickFix.FIX44.BusinessMessageReject m, SessionID s)
         {
 
@@ -1306,8 +1317,7 @@ GO
 
         }
         public void OnMessage(QuickFix.FIX50SP2.BusinessMessageReject m, SessionID s)
-        {
-            
+        {            
             if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
@@ -1315,18 +1325,22 @@ GO
                 {
                     using (var db = new MyDbContext())
                     {
+                        int clOrdId = 0;
+
+                        try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
+
                         var order = new orders();
-                        //order.clientOrderID = m.ClOrdID.Value;
-                        //order.clientOrderID = m.OrigClOrdID.Value;
-                        //order.status = "REJECTED";
-                        order.orderReferenceExchange = "MsgType = j";
+                        order.msgNum = int.Parse(m.Header.GetString(34));
+                        order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
                         order.status = "REJECTED";
                         order.clientID = "RefMsgType = " + m.RefMsgType.Value;
-                        order.executionTime = DateTime.Now;
+                        order.executionTime = m.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime);
                         order.fullMessage = m.ToJSON();
                         order.comments = m.Text.Value;
                         order.exchangeCode = Program.EXCH_CODE;
                         order.serial = m.RefSeqNum.Value.ToString();
+
+                        if (clOrdId > 0) order.clientOrderID = clOrdId.ToString();
 
                         db.orders.Add(order);
                         db.SaveChanges();
@@ -1338,8 +1352,7 @@ GO
                 {
                     DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
                 }
-            }
-            
+            }            
         }
         public void OnMessage(QuickFix.FIX44.TradeCaptureReport m, SessionID s)
         {
@@ -2120,7 +2133,7 @@ private string GetOrdStatusName(char status)
                 //var rz1 = db.newOrders.Where(r => r.Processed_Status is null);
 
                 var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
-                    && r.ExchangeCode == Program.EXCH_CODE
+                    && r.ExchangeCode == Program.EXCH_CODE && ((r.ExpirationDate == null && r.TimeInForce != "DAY") || r.ExpirationDate >= DateTime.UtcNow.Date) //берем только те, которые еще не просрочились 
                     ).OrderBy(r=>r.Id).Take(portionSendOrder).ToList();
                 
                 DateTime startTime = DateTime.Now;
@@ -2382,7 +2395,7 @@ private string GetOrdStatusName(char status)
 
                         if(r.MaxFloor!=null && r.MaxFloor>0)
                         {
-                            ord1.SetField(new DisplayQty(r.MaxFloor.Value));
+                            ord1.SetField(new DisplayQty((int)r.MaxFloor.Value));
                             ord1.SetField(new DisplayMethod('1'));
                         }
                         
