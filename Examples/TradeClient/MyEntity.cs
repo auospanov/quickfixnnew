@@ -114,21 +114,19 @@ namespace TradeClient
 		public string fullMessage { get;set;}
         [Precision(18, 6)]
         public decimal? maxFloor { get; set; }
-		public string? ExDestination { get;set;}
+		public string? exDestination { get;set;}
         [Precision(18, 6)]
         public decimal price1 { get; set; }
         public int? ordRejReason { get; set; }
 		public string? refOrderId { get; set; }
 
-		public string? exchangeSpecialInstructions { get; set;}
+		//public string? exchangeSpecialInstructions { get; set;}
 
 		public string? execType { get; set; }
 
 		public string? secondaryOrderId {  get; set; }
 		public string? lastMkt { get; set; }
-
-		public string? orderId {  get; set; }
-
+		
 		public int? execRestatementReason {  get; set; }
 		public string? partyId {  get; set; }
 
@@ -136,10 +134,8 @@ namespace TradeClient
 
 		public string? partyRole { get;set; }
 
-		public string? securityId { get;set; }
+		//public string? securityId { get;set; }
 
-		public string? side { get; set; }
-
-		public DateTime? transactTime { get; set; }
+		//public DateTime? transactTime { get; set; }
     }
 }

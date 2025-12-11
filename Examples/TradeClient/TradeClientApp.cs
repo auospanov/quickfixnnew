@@ -2,7 +2,6 @@
 using Newtonsoft.Json;
 using QuickFix;
 using QuickFix.Fields;
-//using QuickFix.FIX44;
 using QuickFix.Logger;
 using System;
 using System.Collections;
@@ -23,7 +22,7 @@ using static System.Collections.Specialized.BitVector32;
 using ApplicationException = System.ApplicationException;
 using Exception = System.Exception;
 namespace TradeClient
-{ 
+{
     public class TradeClientApp : QuickFix.MessageCracker, QuickFix.IApplication
     {
         public bool isDebug = false;
@@ -133,11 +132,11 @@ GO
             }
             return true;
         }
-        
-        
+
+
         private void TimerTick(object state)
         {
-            if (Program.GetValueByKey(Program.cfg,"IsQuotesRequest") == "1") { 
+            if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1") {
                 using (var dataContext = new MyDbContext())
                 {
                     List<quotesSimple> tempList = new List<quotesSimple>();
@@ -148,161 +147,161 @@ GO
                     }
                     tempList = tempList.OrderBy(s => int.Parse(s.msgNum)).ToList();
                     dataContext.quotesSimple.AddRange(tempList);
-                    dataContext.SaveChanges();                 
+                    dataContext.SaveChanges();
                 }
             }
-            if (Program.GetValueByKey(Program.cfg,"IsWriteOrder") == "1") {
+            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1") {
                 using (var dataContext = new MyDbContext())
                 {
-                    try { 
-                    List<orders> tempList = new List<orders>();
-                    lock (OrdersCache)
-                    {
-                        tempList = OrdersCache.ToList();
-                        OrdersCache = new ConcurrentBag<orders>();
-                    }
+                    try {
+                        List<orders> tempList = new List<orders>();
+                        lock (OrdersCache)
+                        {
+                            tempList = OrdersCache.ToList();
+                            OrdersCache = new ConcurrentBag<orders>();
+                        }
                         tempList = tempList.OrderBy(s => s.msgNum).ToList();
                         if (tempList.Count() > 0)
-                        { 
+                        {
                             dataContext.orders.AddRange(tempList);
                             dataContext.SaveChanges();
-                            if (!string.IsNullOrEmpty(Program.urlService)) { 
+                            if (!string.IsNullOrEmpty(Program.urlService)) {
                                 OrderSender.SendOrdersAsyncFireAndForget(JsonConvert.SerializeObject(tempList));
                             }
                         }
                     }
-                    catch(Exception err)
+                    catch (Exception err)
                     {
                         string mes = err.Message;
                     }
-                
+
                 }
             }
 
-            if(isDebug)
-            Console.WriteLine($"[{DateTime.Now}] Timer ticked!");
-            if (isStop(Program.GetValueByKey(Program.cfg,"ConnectionString")))
+            if (isDebug)
+                Console.WriteLine($"[{DateTime.Now}] Timer ticked!");
+            if (isStop(Program.GetValueByKey(Program.cfg, "ConnectionString")))
             {
                 Environment.Exit(0);
             }
             if (_session != null && _session.IsLoggedOn)
             {
-                if(isDebug) Console.WriteLine("Session active. You can send periodic messages here.");
+                if (isDebug) Console.WriteLine("Session active. You can send periodic messages here.");
 
-                if (Program.GetValueByKey(Program.cfg,"IsQuotesRequest") == "1")
-                { 
-                    using (var db = new MyDbContext())
+                if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1")
                 {
-                    var intrsView = db.instrsView.ToList();
-
-                    var updatedInstrs = new List<instrsView>();
-
-                    foreach (var instrView in intrsView)
+                    using (var db = new MyDbContext())
                     {
-                        bool exists = instrs.Any(i => i.symbol == instrView.symbol);
+                        var intrsView = db.instrsView.ToList();
 
-                        if (!exists)
+                        var updatedInstrs = new List<instrsView>();
+
+                        foreach (var instrView in intrsView)
                         {
-                            try
-                            {
-                                string requestId = SendMarketDataRequest(_session.SessionID, instrView);
+                            bool exists = instrs.Any(i => i.symbol == instrView.symbol);
 
-                                updatedInstrs.Add(new instrsView
+                            if (!exists)
+                            {
+                                try
                                 {
-                                    symbol = instrView.symbol,
-                                    codeMubasher = instrView.codeMubasher,
-                                    requestId = requestId
-                                });
+                                    string requestId = SendMarketDataRequest(_session.SessionID, instrView);
+
+                                    updatedInstrs.Add(new instrsView
+                                    {
+                                        symbol = instrView.symbol,
+                                        codeMubasher = instrView.codeMubasher,
+                                        requestId = requestId
+                                    });
+                                }
+                                catch (Exception ex)
+                                {
+                                    if (isDebug) Console.WriteLine($"Ошибка при подписке на инструмент {instrView.symbol}: {ex.Message}");
+                                }
                             }
-                            catch (Exception ex)
+                            else
                             {
-                                if(isDebug) Console.WriteLine($"Ошибка при подписке на инструмент {instrView.symbol}: {ex.Message}");
+                                var existingInstr = instrs.First(i => i.symbol == instrView.symbol);
+                                updatedInstrs.Add(existingInstr);
                             }
                         }
-                        else
+
+                        foreach (var oldInstr in instrs)
                         {
-                            var existingInstr = instrs.First(i => i.symbol == instrView.symbol);
-                            updatedInstrs.Add(existingInstr);
-                        }
-                    }
+                            bool stillExists = intrsView.Any(i => i.symbol == oldInstr.symbol);
 
-                    foreach (var oldInstr in instrs)
-                    {
-                        bool stillExists = intrsView.Any(i => i.symbol == oldInstr.symbol);
-
-                        if (!stillExists)
-                        {
-                            try
+                            if (!stillExists)
                             {
-                                SendMarketDataUnsubscribe(_session.SessionID, oldInstr);
-                                if(isDebug) Console.WriteLine($"Отписка от инструмента: {oldInstr.symbol}");
-                            }
-                            catch (Exception ex)
-                            {
-                                if(isDebug) Console.WriteLine($"Ошибка при отписке от инструмента {oldInstr.symbol}: {ex.Message}");
+                                try
+                                {
+                                    SendMarketDataUnsubscribe(_session.SessionID, oldInstr);
+                                    if (isDebug) Console.WriteLine($"Отписка от инструмента: {oldInstr.symbol}");
+                                }
+                                catch (Exception ex)
+                                {
+                                    if (isDebug) Console.WriteLine($"Ошибка при отписке от инструмента {oldInstr.symbol}: {ex.Message}");
+                                }
                             }
                         }
-                    }
 
-                    instrs = updatedInstrs;
-                }
+                        instrs = updatedInstrs;
+                    }
                 }
             }
             else
             {
-                if(isDebug) Console.WriteLine("Session is not active. Skipping sending.");
+                if (isDebug) Console.WriteLine("Session is not active. Skipping sending.");
             }
         }
 
-        public void OnLogon(SessionID sessionId) 
+        public void OnLogon(SessionID sessionId)
         {
-         
+
             //запрос справочника инструментов
-            if (Program.GetValueByKey(Program.cfg,"IsInstrRequest") == "1")
+            if (Program.GetValueByKey(Program.cfg, "IsInstrRequest") == "1")
                 try
                 {
-                   //
+                    //
                 }
                 catch (Exception e)
                 {
                 }
 
             //запрос стутуса торгов
-            if (Program.GetValueByKey(Program.cfg,"IsTradeStatusRequest") == "1")
+            if (Program.GetValueByKey(Program.cfg, "IsTradeStatusRequest") == "1")
                 try
                 {
-                   //
+                    //
                 }
                 catch (Exception e)
                 {
                 }
 
             //запрос котировок
-            
-                try
-                {
-                    // Если таймер уже был создан — останавливаем его
-                    _timer?.Dispose();
 
-                    // Создаем и запускаем новый таймер
-                    _timer = new Timer(
-                        callback: TimerTick, // метод который будет вызываться
-                        state: null,
-                        dueTime: 0,                // Запускать сразу
-                        period: _timerBatchCollectMilliseconds // Периодичность
-                    );
-                    instrs = new List<instrsView>();
-                }
-                catch (Exception e)
-                {
-                }
-            
+            try
+            {
+                // Если таймер уже был создан — останавливаем его
+                _timer?.Dispose();
+
+                // Создаем и запускаем новый таймер
+                _timer = new Timer(
+                    callback: TimerTick, // метод который будет вызываться
+                    state: null,
+                    dueTime: 0,                // Запускать сразу
+                    period: _timerBatchCollectMilliseconds // Периодичность
+                );
+                instrs = new List<instrsView>();
+            }
+            catch (Exception e)
+            {
+            }
+
             //SendMarketDataRequest(sessionId);
-            if(isDebug) Console.WriteLine("Logon - " + sessionId); 
+            if (isDebug) Console.WriteLine("Logon - " + sessionId);
         }
         public void OnLogout(SessionID sessionId)
         {
-            if(isDebug) Console.WriteLine("Logout - " + sessionId); 
+            if (isDebug) Console.WriteLine("Logout - " + sessionId);
             try
             {
                 // Когда отключились — остановить таймер
@@ -313,9 +312,9 @@ GO
             catch { }
         }
 
-        public void FromAdmin(Message message, SessionID sessionId) 
+        public void FromAdmin(Message message, SessionID sessionId)
         {
-            if(isDebug) Console.WriteLine("FromAdmin - " + message.ToString());
+            if (isDebug) Console.WriteLine("FromAdmin - " + message.ToString());
 
 
 
@@ -337,23 +336,23 @@ GO
             else if (message is QuickFix.FIX44.Logon logon)
             {
                 //если сегодня меняется пароль
-                if(Program.isChangePassword)
+                if (Program.isChangePassword)
                 {
                     string rz58 = string.Empty;
                     try { rz58 = logon.GetString(1409); }
                     catch { }
                     //если найден тег 58, то проверка на код "209" - пароль изменен успешно
-                    if(rz58 == "0")
+                    if (rz58 == "0")
                     {
                         //запись в конфигурационный файл нового пароля
                         Program.recNewPassword();
                     }
 
                 }
-       
+
             }
         }
-        public void ToAdmin(Message message, SessionID sessionId) 
+        public void ToAdmin(Message message, SessionID sessionId)
         {
             if (message.Header.GetString(QuickFix.Fields.Tags.MsgType) == QuickFix.Fields.MsgType.LOGON)
             {
@@ -391,10 +390,10 @@ GO
                 //временно добавил 07.11.2025
                 if (sessionConfig.Has("ResetSeqNumFlag"))
                 {
-                    bool val = sessionConfig.GetString("ResetSeqNumFlag") == "Y" ? true : false; 
-                    message.SetField(new ResetSeqNumFlag(val));   
+                    bool val = sessionConfig.GetString("ResetSeqNumFlag") == "Y" ? true : false;
+                    message.SetField(new ResetSeqNumFlag(val));
                     // logon.Set(new ResetSeqNumFlag(true)); // Сбросить счётчик сообщений
-                           
+
                 }
                 if (sessionConfig.Has("HeartBtInt"))
                 {
@@ -403,11 +402,11 @@ GO
                     if (val > 0)
                         message.SetField(new HeartBtInt(val));
                 }
-            }            
+            }
         }
         public void FromApp(Message message, SessionID sessionId)
         {
-            if(isDebug) Console.WriteLine("IN:  " + message.ConstructString());
+            if (isDebug) Console.WriteLine("IN:  " + message.ConstructString());
             try
             {
                 Crack(message, sessionId);
@@ -415,9 +414,9 @@ GO
             }
             catch (Exception ex)
             {
-                if(isDebug) Console.WriteLine("==Cracker exception==");
-                if(isDebug) Console.WriteLine(ex.ToString());
-                if(isDebug) Console.WriteLine(ex.StackTrace);
+                if (isDebug) Console.WriteLine("==Cracker exception==");
+                if (isDebug) Console.WriteLine(ex.ToString());
+                if (isDebug) Console.WriteLine(ex.StackTrace);
             }
         }
 
@@ -436,7 +435,33 @@ GO
             catch (FieldNotFoundException)
             { }
 
-            if(isDebug) Console.WriteLine();
+            int seqNum = 0;
+            int clOrdId = 0;
+
+            if (message is QuickFix.FIX44.NewOrderSingle || message is QuickFix.FIX50SP2.NewOrderSingle)
+            {
+                seqNum = message.Header.GetInt(Tags.MsgSeqNum);
+                clOrdId = int.Parse(message.GetString(11));
+                try
+                {
+                    using (var db = new MyDbContext())
+                    {
+                        var oneRec = db.NewOrders.Where(r=>r.Id==clOrdId).FirstOrDefault();
+                        if(oneRec != null)
+                        {
+                            oneRec.msgNum = seqNum;
+                            db.SaveChanges();
+                        }                        
+                    }
+                }
+                catch (Exception e)
+                {
+                    OrderSender.writeLog("Exception oneRec = " + e.Message);
+                }
+
+            }
+
+            if (isDebug) Console.WriteLine();
             if(isDebug) Console.WriteLine("OUT: " + message.ConstructString());
         }
         #endregion
@@ -899,27 +924,37 @@ GO
                         using (var db = new MyDbContext())
                         {
                             var ord = new orders();
-                            ord.acc = m.Account.Value;
-                            ord.ExDestination = m.GetField(new QuickFix.Fields.ExDestination()).Value;
+                            ord.msgNum = long.Parse(m.Header.GetString(34));
+                            ord.fullMessage = m.ToJSON();
+                            ord.exchangeCode = Program.EXCH_CODE;
+                            if (m.IsSetField(1)) ord.acc = m.Account.Value;
+                            if (m.IsSetField(100)) ord.exDestination = m.GetField(new QuickFix.Fields.ExDestination()).Value;
                             if (m.IsSetField(10104)) ord.price1 = m.GetDecimal(10104);
                             if (m.IsSetField(103)) ord.ordRejReason = m.GetInt(103);
                             if (m.IsSetField(1080)) ord.refOrderId = m.GetString(1080);
-                            ord.clientOrderID = m.ClOrdID.Value;
-                            if (m.IsSetField(1139)) ord.refOrderId = m.GetString(1139);
-                            ord.execType = m.ExecType.Value.ToString();
-                            ord.leavesQty = m.LeavesQty.Value;
+                            if (m.IsSetField(11)) ord.clientOrderID = m.ClOrdID.Value;
+                            if (m.IsSetField(41)) ord.origClOrderID = m.OrigClOrdID.Value;
+                            if (m.IsSetField(150)) ord.execType = m.ExecType.Value.ToString();
+                            if (m.IsSetField(151)) ord.leavesQty = m.LeavesQty.Value;
                             if (m.IsSetField(198)) ord.secondaryOrderId = m.GetString(198);
-                            if (m.IsSetField(30)) ord.lastMkt = m.GetString(30);
-                            ord.price = m.LastPx.Value;
-                            ord.quantity = m.LastQty.Value;
-                            if (m.IsSetField(37)) ord.orderId = m.GetString(37);
-                            if (m.IsSetField(378)) ord.execRestatementReason = m.GetInt(378);
-                            ord.quantity = m.OrderQty.Value;
-                            ord.status = m.OrdStatus.Value.ToString();
-                            if (m.IsSetField(40)) ord.status = m.GetString(48);
-                            if (m.IsSetField(41)) ord.clientOrderID = m.ClOrdID.Value;
+                            if (m.IsSetField(30)) ord.lastMkt = m.GetString(30);                                                        
+                            if (m.IsSetField(37)) ord.orderReferenceExchange = m.GetString(37);
+                            if (m.IsSetField(38)) ord.quantity = m.OrderQty.Value;
+                            if (m.IsSetField(39)) ord.status = GetOrdStatusName(m.OrdStatus.Value);
+                            if (m.IsSetField(40)) ord.type = GetOrdTypeName(m.OrdType.Value);
                             if (m.IsSetField(44)) ord.price = m.Price.Value;
-                            
+                            if (m.IsSetField(48)) ord.ticker = m.SecurityID.Value;
+                            if (m.IsSetField(54)) ord.direction = GetSideName(m.Side.Value);
+                            if (m.IsSetField(59)) ord.timeInForce = GetTimeInForceName(m.TimeInForce.Value);
+                            if (m.IsSetField(378)) ord.execRestatementReason = m.GetInt(378);
+                            if (m.IsSetField(880)) ord.TrdMatchID = m.TrdMatchID.Value;
+
+                            if (m.IsSetField(QuickFix.Fields.Tags.TransactTime))
+                            {
+                                var transactTime = m.GetDateTime(QuickFix.Fields.Tags.TransactTime);
+                                ord.executionTime = transactTime;
+                            }
+
                             if (m.IsSetNoPartyIDs())
                             {
                                 int groupCount = m.GetInt(QuickFix.Fields.Tags.NoPartyIDs);
@@ -927,24 +962,20 @@ GO
                                 for (int i = 1; i <= groupCount; i++)
                                 {
                                     var partyGroup = new QuickFix.FIX50SP2.ExecutionReport.NoPartyIDsGroup();
+                                    m.GetGroup(i, partyGroup);   // <-- ВАЖНО!
 
                                     string partyId = partyGroup.GetString(QuickFix.Fields.Tags.PartyID);
                                     ord.partyId = partyId;
+
                                     string partySource = partyGroup.GetString(QuickFix.Fields.Tags.PartyIDSource);
                                     ord.partyIdSource = partySource;
+
                                     int partyRole = partyGroup.GetInt(QuickFix.Fields.Tags.PartyRole);
                                     ord.partyRole = partyRole.ToString();
-
                                 }
-
                             }
-                            ord.securityId = m.SecurityID.Value;
-                            ord.side = m.Side.Value.ToString();
-                            if (m.IsSetField(59)) ord.timeInForce = m.TimeInForce.Value.ToString();
-                            ord.transactTime = m.TransactTime.Value;
 
-                            OrdersCache.Add(ord); 
-
+                            OrdersCache.Add(ord);
                         }
                     }
                     else
@@ -1456,6 +1487,8 @@ private string GetOrdTypeName(char type)
         'L' => "PREVIOUS FUND VALUATION POINT",
         'M' => "NEXT FUND VALUATION POINT",
         'P' => "PEGGED",
+        'n' => "NEGOTIATED",
+        'o' => "EXPANDED_LIQUIDITY_POOL",
         _ => $"UNKNOWN({type})"
     };
 }
@@ -1473,6 +1506,7 @@ private string GetTimeInForceName(char tif)
         '5' => "GOOD TILL CROSSING",
         '6' => "GOOD TILL DATE",
         '7' => "AT THE CLOSE",
+        'x' => "during the extended trading session",
         _ => $"UNKNOWN({tif})"
     };
 }
@@ -1708,16 +1742,18 @@ private string GetOrdStatusName(char status)
 
         public void Run()
         {
-            int i = 0;
-            while (true)
+            
+            //if (this.MyInitiator is null || !this.MyInitiator.IsLoggedOn)
+            //    throw new ApplicationException("Somehow this.MyInitiator is not set");
+            //int i = 0;
+            while (true)   
             {
-                i++;
-                checkNewOrders();
-                
+                if (this.MyInitiator is not null && this.MyInitiator.IsLoggedOn)
+                    checkNewOrders();                
             }
             return;
-            if (this.MyInitiator is null)
-                throw new ApplicationException("Somehow this.MyInitiator is not set");
+            //if (this.MyInitiator is null)
+            //    throw new ApplicationException("Somehow this.MyInitiator is not set");
 
             while (true)
             {
@@ -2301,7 +2337,7 @@ private string GetOrdStatusName(char status)
                             Console.WriteLine("Не указан тикер в таблице newOrders. Id записи = " + r.Id);
                             continue;
                         }
-                        ord1.SetField(new ExDestination("1001"));      //пул ликвидности                  
+                        ord1.SetField(new ExDestination(r.exDestination));      //пул ликвидности                  
                         ord1.SetField(new SecurityID(r.Ticker));
 
                         ord1.SetField(new Side(s));
@@ -2330,6 +2366,12 @@ private string GetOrdStatusName(char status)
                             }
                             ord1.Set(new Price(r.Price.Value));
                         }
+                        if (r.price1 != null)
+                        {
+                            var price1 = new DecimalField(10104, r.price1.Value);
+                            ord1.SetField(price1);
+                        }
+
                         if (r.Quantity == null)
                         {
                             Console.WriteLine("Не задано значение Quantity. Id записи = " + r.Id);
@@ -2337,6 +2379,12 @@ private string GetOrdStatusName(char status)
                             continue;
                         }
                         ord1.SetField(new OrderQty((int)r.Quantity));
+
+                        if(r.MaxFloor!=null && r.MaxFloor>0)
+                        {
+                            ord1.SetField(new DisplayQty(r.MaxFloor.Value));
+                            ord1.SetField(new DisplayMethod('1'));
+                        }
                         
                         ord1.SetField(new Account(r.Acc));
 

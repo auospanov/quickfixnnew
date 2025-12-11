@@ -57,6 +57,9 @@ namespace TradeClient
         public string? PartyIDSource { get; set; }
         public string? PartyRole { get; set; }
         public decimal? MaxFloor { get; set; }
+        public string? exDestination { get; set; }
+        public decimal? price1 { get; set; }
+        public int? msgNum { get; set; }
     }
     public class tradeCapture
     {

@@ -14,7 +14,7 @@ using System;
 public class OrderSender
 {
     //private const string ApiUrl = "https://api.stdi.kz/v3/kaseOrders/set";
-   public static void writeLog(string request)
+   public static void writeLog(string message, [System.Runtime.CompilerServices.CallerMemberName] string caller = "")
 {
     try
     {
@@ -48,7 +48,7 @@ public class OrderSender
 
         try
         {
-            sb.AppendLine("request: " + request);
+            sb.AppendLine($"{DateTime.Now} [{caller}] {message}");
         }
         catch
         {
@@ -84,13 +84,13 @@ public class OrderSender
                     request.AddHeader("Authorization", Program.urlServiceAuthorization);
                 
                 var response = await client.ExecuteAsync(request);
-                writeLog("Time: " + DateTime.Now + " jsonOrders = " + jsonOrders + $";\n Ответ API: {response.StatusCode} — {response.Content}");
+                writeLog("request jsonOrders = " + jsonOrders + $";\n Ответ API: {response.StatusCode} — {response.Content}");
                 // Можно залогировать при необходимости
                 Console.WriteLine($"[DEBUG] Ответ API: {response.StatusCode} — {response.Content}");
             }
             catch (Exception ex)
             {
-                writeLog("Time: " + DateTime.Now + " jsonOrders = " + jsonOrders + "; Exception = " + ex.Message);
+                writeLog("request jsonOrders = " + jsonOrders + "; Exception = " + ex.Message);
                 Console.WriteLine($"[ERROR] Ошибка при отправке запроса: {ex.Message}");
             }
         });
