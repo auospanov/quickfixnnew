@@ -2096,26 +2096,75 @@ private string GetOrdStatusName(char status)
         {
             try
             {
+                if (Program.EXCH_CODE == "ITS")
+                {
+                    Side side;
+                    if (ord.Direction == "CANCEL_BUY") side = new Side(Side.BUY);
+                    else if (ord.Direction == "CANCEL_SELL") side = new Side(Side.SELL);
+                    else
+                    {
+                        //здесь нужно поставить логирование
+                        return;
+                    }
+                    QuickFix.FIX50SP2.OrderCancelRequest req = new QuickFix.FIX50SP2.OrderCancelRequest();
+                    if(!string.IsNullOrEmpty(ord.OrigClOrderID)) req.OrigClOrdID = new OrigClOrdID(ord.OrigClOrderID.ToString());
+                    req.ClOrdID = new ClOrdID(ord.Id.ToString());
+                    req.TransactTime = new TransactTime(DateTime.Now);
+                    if(!string.IsNullOrEmpty(ord.exDestination))
+                    {
+                        //ExDestination
+                        var exDestination = new StringField(100,ord.exDestination);
+                        req.SetField(exDestination);
+                    }
+                    req.SecurityID = new SecurityID(ord.Ticker);
+                    req.Side = side;
+                    req.Account = new Account(ord.Acc);
+                    var partyIdGroup = new QuickFix.FIX50SP2.NewOrderSingle.NoPartyIDsGroup();
+                    if (ord.Acc == "STDICLIENT")
+                    {
+                        partyIdGroup.SetField(new PartyID("387"));
+                        partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
+                        partyIdGroup.SetField(new PartyRole(int.Parse("1")));
+                        req.AddGroup(partyIdGroup);
+                    }
+                    else if (ord.Acc == "STDIOWN")
+                    {
+                        partyIdGroup.SetField(new PartyID("387"));
+                        partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
+                        partyIdGroup.SetField(new PartyRole(int.Parse("1")));
+                        req.AddGroup(partyIdGroup);
+                    }
+                    partyIdGroup.SetField(new PartyID(ord.SenderSubID));
+                    partyIdGroup.SetField(new PartyIDSource(char.Parse(ord.PartyIDSource)));
+                    partyIdGroup.SetField(new PartyRole(int.Parse(ord.PartyRole)));
+                    req.AddGroup(partyIdGroup);
 
-                Side side;
-                if (ord.Direction == "CANCEL_BUY") side = new Side(Side.BUY);
-                else if (ord.Direction == "CANCEL_SELL") side = new Side(Side.SELL);
+                    req.Header.GetString(Tags.BeginString);
+
+                    SendMessage(req);
+                }
                 else
                 {
-                    //здесь нужно поставить логирование
-                    return;
+                    Side side;
+                    if (ord.Direction == "CANCEL_BUY") side = new Side(Side.BUY);
+                    else if (ord.Direction == "CANCEL_SELL") side = new Side(Side.SELL);
+                    else
+                    {
+                        //здесь нужно поставить логирование
+                        return;
+                    }
+                    QuickFix.FIX44.OrderCancelRequest orderCancelRequest = new QuickFix.FIX44.OrderCancelRequest(
+                    new OrigClOrdID(ord.OrigClOrderID.ToString()), //new OrigClOrdID("NONE"), //
+                    new ClOrdID(ord.Id.ToString()),
+                    new Symbol(ord.Ticker),
+                    side,
+                    new TransactTime(DateTime.Now));
+
+                    //orderCancelRequest.Set(new OrderID(ord.OrigClOrderID.ToString()));
+                    orderCancelRequest.Set(new OrderQty(int.Parse(ord.Quantity.Value.ToString())));
+                    SendMessage(orderCancelRequest);
                 }
-                QuickFix.FIX44.OrderCancelRequest orderCancelRequest = new QuickFix.FIX44.OrderCancelRequest(
-                new OrigClOrdID(ord.OrigClOrderID.ToString()), //new OrigClOrdID("NONE"), //
-                new ClOrdID(ord.Id.ToString()),
-                new Symbol(ord.Ticker),
-                side,
-                new TransactTime(DateTime.Now));
-
-                //orderCancelRequest.Set(new OrderID(ord.OrigClOrderID.ToString()));
-                orderCancelRequest.Set(new OrderQty(int.Parse(ord.Quantity.Value.ToString())));
-
-                SendMessage(orderCancelRequest);
+                
                 
             }
             catch 
