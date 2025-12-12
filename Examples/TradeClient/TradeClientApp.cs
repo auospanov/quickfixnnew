@@ -1212,43 +1212,43 @@ GO
             }
         }
 
-        public void OnMessage(QuickFix.FIX50SP2.OrderCancelReject m, SessionID s)
-        {
-            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
-            {
-                if (isDebug) Console.WriteLine("Received OrderCancelReject");
-                try
-                {
-                    using (var db = new MyDbContext())
-                    {
-                        var order = new orders();
-                        order.clientOrderID = m.ClOrdID.Value;
-                        order.clientOrderID = m.OrigClOrdID.Value;
-                        order.status = "REJECTED";
-                        order.executionTime = DateTime.Parse(m.TransactTime.Value.ToString());
-                        string status = string.Empty;
-                        if (m.OrdStatus.Value == '1') status = "Partially filled";
-                        else if (m.OrdStatus.Value == '2') status = "Filled";
-                        else if (m.OrdStatus.Value == '4') status = "Canceled";
-                        else if (m.OrdStatus.Value == '5') status = "Replaced";
-                        else if (m.OrdStatus.Value == '8') status = "Rejected";
-                        else if (m.OrdStatus.Value == '9') status = "Suspended";
-                        else if (m.OrdStatus.Value == 'C') status = "Expired";
+        //public void OnMessage(QuickFix.FIX50SP2.OrderCancelReject m, SessionID s)
+        //{
+        //    if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+        //    {
+        //        if (isDebug) Console.WriteLine("Received OrderCancelReject");
+        //        try
+        //        {
+        //            using (var db = new MyDbContext())
+        //            {
+        //                var order = new orders();
+        //                order.clientOrderID = m.ClOrdID.Value;
+        //                order.clientOrderID = m.OrigClOrdID.Value;
+        //                order.status = "REJECTED";
+        //                order.executionTime = DateTime.Parse(m.TransactTime.Value.ToString());
+        //                string status = string.Empty;
+        //                if (m.OrdStatus.Value == '1') status = "Partially filled";
+        //                else if (m.OrdStatus.Value == '2') status = "Filled";
+        //                else if (m.OrdStatus.Value == '4') status = "Canceled";
+        //                else if (m.OrdStatus.Value == '5') status = "Replaced";
+        //                else if (m.OrdStatus.Value == '8') status = "Rejected";
+        //                else if (m.OrdStatus.Value == '9') status = "Suspended";
+        //                else if (m.OrdStatus.Value == 'C') status = "Expired";
 
-                        order.comments = status + " " + m.OrdStatus.Value + " " + m.Text;
+        //                order.comments = status + " " + m.OrdStatus.Value + " " + m.Text;
 
-                        db.orders.Add(order);
-                        db.SaveChanges();
+        //                db.orders.Add(order);
+        //                db.SaveChanges();
 
                         
-                    }
-                }
-                catch (Exception e)
-                {
-                    DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
-                }
-            }
-        }
+        //            }
+        //        }
+        //        catch (Exception e)
+        //        {
+        //            DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+        //        }
+        //    }
+        //}
 
         public void OnMessage(QuickFix.FIX44.Reject m, SessionID s)
         {
@@ -1353,6 +1353,40 @@ GO
                     DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
                 }
             }            
+        }
+        public void OnMessage(QuickFix.FIX50SP2.OrderCancelReject m, SessionID s)
+        {
+            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            {
+                if (isDebug) Console.WriteLine("Received BusinessMessageReject");
+                try
+                {
+                    using (var db = new MyDbContext())
+                    {                        
+                        var order = new orders();
+                        order.msgNum = int.Parse(m.Header.GetString(34));
+                        order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
+                        order.status = "REJECTED";
+                        //order.clientID = "RefMsgType = " + m.RefMsgType.Value;
+                        order.executionTime = m.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime);
+                        order.fullMessage = m.ToJSON();
+                        string text = m.IsSetField(QuickFix.Fields.Tags.Text) ? m.GetString(QuickFix.Fields.Tags.Text) : string.Empty;
+                        order.comments = $"Reason={m.CxlRejReason} {text}";
+                        order.exchangeCode = Program.EXCH_CODE;
+                        order.serial = m.OrderID.Value.ToString();
+                        order.clientOrderID = m.ClOrdID.Value;
+
+                        db.orders.Add(order);
+                        db.SaveChanges();
+
+
+                    }
+                }
+                catch (Exception e)
+                {
+                    DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                }
+            }
         }
         public void OnMessage(QuickFix.FIX44.TradeCaptureReport m, SessionID s)
         {
