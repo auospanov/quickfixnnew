@@ -1376,9 +1376,7 @@ GO
                         order.serial = m.OrderID.Value.ToString();
                         order.clientOrderID = m.ClOrdID.Value;
 
-                        db.orders.Add(order);
-                        db.SaveChanges();
-
+                        OrdersCache.Add(order);
 
                     }
                 }
