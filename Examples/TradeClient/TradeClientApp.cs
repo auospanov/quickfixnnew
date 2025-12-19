@@ -1836,78 +1836,78 @@ GO
         _ => $"UNKNOWN({side})"
     };
 }
-private string GetOrdTypeName(char type)
-{
-    return type switch
-    {
-        '1' => "MARKET",
-        '2' => "LIMIT",
-        '3' => "STOP",
-        '4' => "STOP LIMIT",
-        '5' => "MARKET ON CLOSE",
-        '6' => "WITH OR WITHOUT",
-        '7' => "LIMIT OR BETTER",
-        '8' => "LIMIT WITH OR WITHOUT",
-        '9' => "ON BASIS",
-        'A' => "ON CLOSE",
-        'B' => "LIMIT ON CLOSE",
-        'C' => "FOREX MARKET",
-        'D' => "PREVIOUSLY QUOTED",
-        'E' => "PREVIOUSLY INDICATED",
-        'F' => "FOREX LIMIT",
-        'G' => "FOREX SWAP",
-        'H' => "FOREX PREVIOUSLY QUOTED",
-        'I' => "FUNARI",
-        'J' => "MARKET IF TOUCHED",
-        'K' => "MARKET WITH LEFTOVER AS LIMIT",
-        'L' => "PREVIOUS FUND VALUATION POINT",
-        'M' => "NEXT FUND VALUATION POINT",
-        'P' => "PEGGED",
-        'n' => "NEGOTIATED",
-        'o' => "EXPANDED_LIQUIDITY_POOL",
-        _ => $"UNKNOWN({type})"
-    };
-}
+        private string GetOrdTypeName(char type)
+        {
+            return type switch
+            {
+                '1' => "MARKET",
+                '2' => "LIMIT",
+                '3' => "STOP",
+                '4' => "STOP LIMIT",
+                '5' => "MARKET ON CLOSE",
+                '6' => "WITH OR WITHOUT",
+                '7' => "LIMIT OR BETTER",
+                '8' => "LIMIT WITH OR WITHOUT",
+                '9' => "ON BASIS",
+                'A' => "ON CLOSE",
+                'B' => "LIMIT ON CLOSE",
+                'C' => "FOREX MARKET",
+                'D' => "PREVIOUSLY QUOTED",
+                'E' => "PREVIOUSLY INDICATED",
+                'F' => "FOREX LIMIT",
+                'G' => "FOREX SWAP",
+                'H' => "FOREX PREVIOUSLY QUOTED",
+                'I' => "FUNARI",
+                'J' => "MARKET IF TOUCHED",
+                'K' => "MARKET WITH LEFTOVER AS LIMIT",
+                'L' => "PREVIOUS FUND VALUATION POINT",
+                'M' => "NEXT FUND VALUATION POINT",
+                'P' => "PEGGED",
+                'n' => "NEGOTIATED",
+                'o' => "EXPANDED_LIQUIDITY_POOL",
+                _ => $"UNKNOWN({type})"
+            };
+        }
 
 
-private string GetTimeInForceName(char tif)
-{
-    return tif switch
-    {
-        '0' => "DAY",
-        '1' => "GOOD TILL CANCEL",
-        '2' => "AT THE OPENING",
-        '3' => "IMMEDIATE OR CANCEL",
-        '4' => "FILL OR KILL",
-        '5' => "GOOD TILL CROSSING",
-        '6' => "GOOD TILL DATE",
-        '7' => "AT THE CLOSE",
-        'x' => "during the extended trading session",
-        _ => $"UNKNOWN({tif})"
-    };
-}
-private string GetOrdStatusName(char status)
-{
-    return status switch
-    {
-        '0' => "NEW",
-        '1' => "PARTIALLY FILLED",
-        '2' => "FILLED",
-        '3' => "DONE FOR DAY",
-        '4' => "CANCELED",
-        '5' => "REPLACED",
-        '6' => "PENDING CANCEL",
-        '7' => "STOPPED",
-        '8' => "REJECTED",
-        '9' => "SUSPENDED",
-        'A' => "PENDING NEW",
-        'B' => "CALCULATED",
-        'C' => "EXPIRED",
-        'D' => "ACCEPTED FOR BIDDING",
-        'E' => "PENDING REPLACE",
-        _ => $"UNKNOWN({status})"
-    };
-}
+        private string GetTimeInForceName(char tif)
+        {
+            return tif switch
+            {
+                '0' => "DAY",
+                '1' => "GOOD TILL CANCEL",
+                '2' => "AT THE OPENING",
+                '3' => "IMMEDIATE OR CANCEL",
+                '4' => "FILL OR KILL",
+                '5' => "GOOD TILL CROSSING",
+                '6' => "GOOD TILL DATE",
+                '7' => "AT THE CLOSE",
+                'x' => "during the extended trading session",
+                _ => $"UNKNOWN({tif})"
+            };
+        }
+        private string GetOrdStatusName(char status)
+        {
+            return status switch
+            {
+                '0' => "NEW",
+                '1' => "PARTIALLY FILLED",
+                '2' => "FILLED",
+                '3' => "DONE FOR DAY",
+                '4' => "CANCELED",
+                '5' => "REPLACED",
+                '6' => "PENDING CANCEL",
+                '7' => "STOPPED",
+                '8' => "REJECTED",
+                '9' => "SUSPENDED",
+                'A' => "PENDING NEW",
+                'B' => "CALCULATED",
+                'C' => "EXPIRED",
+                'D' => "ACCEPTED FOR BIDDING",
+                'E' => "PENDING REPLACE",
+                _ => $"UNKNOWN({status})"
+            };
+        }
 
         public static ConcurrentBag<orders> OrdersCache = new ConcurrentBag<orders>();
         
@@ -2654,11 +2654,20 @@ private string GetOrdStatusName(char status)
 
                         if (r.MaxFloor is not null)
                         {
-                            if (r.MaxFloor > 0) ord1.Set(new MaxFloor(r.MaxFloor.Value));
+                            if (r.MaxFloor > 0) ord1.Set(new DisplayQty(r.MaxFloor.Value));
                         }
 
-                        ord1.Set(new Account(r.Investor));
-                        ord1.Set(new OrderCapacity(r.Acc));
+                        ord1.Set(new Account(r.Acc));
+                        //ord1.Set(new OrderCapacity(r.Acc)); //r.Investor
+
+                        ord1.SetField(new NoPartyIDs(3));                                        
+
+                        var partyIdGroup = new QuickFix.FIX50SP1.NewOrderSingle.NoPartyIDsGroup();                        
+                        partyIdGroup.SetField(new PartyID(r.Investor));
+                        partyIdGroup.SetField(new PartyIDSource(char.Parse(r.PartyIDSource)));
+                        partyIdGroup.SetField(new PartyRole(int.Parse(r.PartyRole)));
+                        ord1.AddGroup(partyIdGroup);
+
                         ord1.Header.GetString(Tags.BeginString);
 
                         SendMessage(ord1);
@@ -2928,31 +2937,7 @@ private string GetOrdStatusName(char status)
             }
 
         }
-        //public static string GenerateNewPassword(int length=8)
-        //{
-        //    if (length <= 0)
-        //        throw new ArgumentException("Длина строки должна быть больше нуля.", nameof(length));
-
-        //    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        //    char[] result = new char[length];
-
-        //    // Буфер для случайных байтов
-        //    byte[] randomBytes = new byte[length];
-
-        //    using (var rng = RandomNumberGenerator.Create())
-        //    {
-        //        rng.GetBytes(randomBytes);
-        //    }
-
-        //    for (int i = 0; i < length; i++)
-        //    {
-        //        // Преобразуем случайный байт в индекс символа
-        //        result[i] = chars[randomBytes[i] % chars.Length];
-        //    }
-
-        //    return new string(result);
-        //}
-
+        
 
         public static string GenerateNewPassword(int length = 8)
         {
