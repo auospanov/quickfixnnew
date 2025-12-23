@@ -2665,7 +2665,7 @@ GO
 
                         if (ordType.Value == OrdType.LIMIT || ordType.Value == OrdType.STOP_LIMIT)
                         {
-                            decimal? price = 0;
+                            decimal price = 0;
                             bool ok1 = decimal.TryParse(r.Price.Value.ToString().Replace(",","."), out decimal rez1);
                             if (ok1) price = rez1;
                             else
@@ -2679,7 +2679,7 @@ GO
                                 }
                             }
                             
-                            ord1.Set(new Price(price.Value));
+                            ord1.Set(new Price(price));
                         }
 
                         if (r.MaxFloor is not null)
