@@ -2631,7 +2631,21 @@ GO
 
                         ord1.Set(new Symbol(r.Ticker));
                         ord1.Set(new HandlInst('1'));
-                        ord1.Set(new OrderQty(int.Parse(r.Quantity.Value.ToString())));
+                        int qty = 0;
+                        bool ok = int.TryParse(r.Quantity.Value.ToString().Replace(",","."), out int rez);
+                        if (ok) qty = rez;
+                        else
+                        {
+                            int.TryParse(r.Quantity.Value.ToString().Replace(".", ","), out int rez1);
+                            if (ok) qty = rez1;
+                            else
+                            {
+                                Console.WriteLine("Не удалось преобразовать " + r.Quantity.Value.ToString() + " в Int");
+                                continue;
+                            }
+                        }
+
+                        ord1.Set(new OrderQty(qty));
 
                         s = ' ';
                         if (r.TimeInForce.ToUpper() == "DAY") s = TimeInForce.DAY;
@@ -2650,7 +2664,23 @@ GO
                             ord1.Set(new ExpireDate(r.ExpirationDate.Value.ToString("yyyyMMdd")));
 
                         if (ordType.Value == OrdType.LIMIT || ordType.Value == OrdType.STOP_LIMIT)
+                        {
+                            decimal? price = 0;
+                            bool ok1 = decimal.TryParse(r.Price.Value.ToString().Replace(",","."), out decimal rez1);
+                            if (ok1) price = rez1;
+                            else
+                            {
+                                ok1 = decimal.TryParse(r.Price.Value.ToString().Replace(".", ","), out decimal rez2);
+                                if (ok1) price = rez2;
+                                else
+                                {
+                                    Console.WriteLine("Не удалось преобразовать " + r.Price.Value.ToString() + " в Decimal");
+                                    continue;
+                                }
+                            }
+                            
                             ord1.Set(new Price(r.Price.Value));
+                        }
 
                         if (r.MaxFloor is not null)
                         {
