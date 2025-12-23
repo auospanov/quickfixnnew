@@ -2679,7 +2679,7 @@ GO
                                 }
                             }
                             
-                            ord1.Set(new Price(r.Price.Value));
+                            ord1.Set(new Price(price.Value));
                         }
 
                         if (r.MaxFloor is not null)
