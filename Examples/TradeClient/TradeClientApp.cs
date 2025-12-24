@@ -957,67 +957,7 @@ GO
                 if (isDebug) Console.WriteLine("Received ExecutionReport");
                 try
                 {
-                    if (Program.EXCH_CODE == "ITS")
-                    {
-                        using (var db = new MyDbContext())
-                        {
-                            var ord = new orders();
-                            ord.msgNum = long.Parse(m.Header.GetString(34));
-                            ord.fullMessage = m.ToJSON();
-                            ord.exchangeCode = Program.EXCH_CODE;
-                            if (m.IsSetField(1)) ord.acc = m.Account.Value;
-                            if (m.IsSetField(100)) ord.exDestination = m.GetField(new QuickFix.Fields.ExDestination()).Value;
-                            if (m.IsSetField(10104)) ord.price1 = m.GetDecimal(10104);
-                            if (m.IsSetField(103)) ord.ordRejReason = m.GetInt(103);
-                            if (m.IsSetField(1080)) ord.refOrderId = m.GetString(1080);
-                            if (m.IsSetField(11)) ord.clientOrderID = m.ClOrdID.Value;
-                            if (m.IsSetField(41)) ord.origClOrderID = m.OrigClOrdID.Value;
-                            if (m.IsSetField(150)) ord.execType = m.ExecType.Value.ToString();
-                            if (m.IsSetField(151)) ord.leavesQty = m.LeavesQty.Value;
-                            if (m.IsSetField(198)) ord.secondaryOrderId = m.GetString(198);
-                            if (m.IsSetField(30)) ord.lastMkt = m.GetString(30);
-                            if (m.IsSetField(37)) ord.orderReferenceExchange = m.GetString(37);
-                            if (m.IsSetField(38)) ord.quantity = m.OrderQty.Value;
-                            if (m.IsSetField(39)) ord.status = GetOrdStatusName(m.OrdStatus.Value);
-                            if (m.IsSetField(40)) ord.type = GetOrdTypeName(m.OrdType.Value);
-                            if (m.IsSetField(44)) ord.price = m.Price.Value;
-                            if (m.IsSetField(48)) ord.ticker = m.SecurityID.Value;
-                            if (m.IsSetField(54)) ord.direction = GetSideName(m.Side.Value);
-                            if (m.IsSetField(59)) ord.timeInForce = GetTimeInForceName(m.TimeInForce.Value);
-                            if (m.IsSetField(58)) ord.comments = m.Text.Value;
-                            if (m.IsSetField(378)) ord.execRestatementReason = m.GetInt(378);
-                            if (m.IsSetField(880)) ord.TrdMatchID = m.TrdMatchID.Value;
-
-                            if (m.IsSetField(QuickFix.Fields.Tags.TransactTime))
-                            {
-                                var transactTime = m.GetDateTime(QuickFix.Fields.Tags.TransactTime);
-                                ord.executionTime = transactTime;
-                            }
-
-                            if (m.IsSetNoPartyIDs())
-                            {
-                                int groupCount = m.GetInt(QuickFix.Fields.Tags.NoPartyIDs);
-
-                                for (int i = 1; i <= groupCount; i++)
-                                {
-                                    var partyGroup = new QuickFix.FIX50SP2.ExecutionReport.NoPartyIDsGroup();
-                                    m.GetGroup(i, partyGroup);   // <-- ВАЖНО!
-
-                                    string partyId = partyGroup.GetString(QuickFix.Fields.Tags.PartyID);
-                                    ord.partyId = partyId;
-
-                                    string partySource = partyGroup.GetString(QuickFix.Fields.Tags.PartyIDSource);
-                                    ord.partyIdSource = partySource;
-
-                                    int partyRole = partyGroup.GetInt(QuickFix.Fields.Tags.PartyRole);
-                                    ord.partyRole = partyRole.ToString();
-                                }
-                            }
-
-                            OrdersCache.Add(ord);
-                        }
-                    }
-                    else
+                    if (Program.EXCH_CODE == "AIX_SP1")
                     {
                         using (var db = new MyDbContext())
                         {
@@ -1043,54 +983,15 @@ GO
 
                             if (m.IsSetField(58))
                             {
-                                string comment = m.GetField(new QuickFix.Fields.Text()).getValue();
-                                if (Program.EXCH_CODE.Contains("KASE", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    order.comments = Encoding.GetEncoding("windows-1251").GetString(Encoding.GetEncoding("windows-1252").GetBytes(comment));
-                                }
-                                else
-                                {
-                                    order.comments = comment;
-                                }
+                                order.comments = m.GetField(new QuickFix.Fields.Text()).getValue();
                             }
 
                             if (m.IsSetField(55)) order.ticker = m.GetField(new QuickFix.Fields.Symbol()).getValue();
-                            if (Program.EXCH_CODE.Contains("KASE", StringComparison.OrdinalIgnoreCase) && m.IsSetField(336))
-                            {
-                                order.board = m.GetString(336);
-                            }
-                            if (m.IsSetField(1))
-                            {
-                                if (Program.EXCH_CODE.Contains("AIX", StringComparison.OrdinalIgnoreCase))
-                                    order.investor = m.GetField(new QuickFix.Fields.Account()).getValue();
-                                else
-                                    order.acc = m.GetField(new QuickFix.Fields.Account()).getValue();
-                            }
-                            if (m.IsSetField(528) && Program.EXCH_CODE.Contains("AIX", StringComparison.OrdinalIgnoreCase))
-                                order.acc = m.GetField(new QuickFix.Fields.OrderCapacity()).Value;
+                            if (m.IsSetField(1)) order.acc = m.GetField(new QuickFix.Fields.Account()).getValue();
+                            if (m.IsSetField(448)) order.investor = m.GetField(new QuickFix.Fields.PartyID()).getValue();
+                                                        
 
-                            //if (m.IsSetField(448)) order.investor = m.GetField(new QuickFix.Fields.PartyID()).getValue();
-
-                            if (Program.EXCH_CODE.Contains("KASE", StringComparison.OrdinalIgnoreCase))
-                            {
-                                if (m.IsSetField(6029)) order.currency = m.GetString(6029);
-                            }
-                            else if (Program.EXCH_CODE.Equals("QUIK", StringComparison.OrdinalIgnoreCase))
-                            {
-                                if (m.IsSetField(15)) order.currency = m.GetField(new QuickFix.Fields.Currency()).getValue();
-                                if (m.IsSetField(207)) order.bloom_exchCode = m.GetField(new QuickFix.Fields.SecurityExchange()).getValue();
-                                if (m.IsSetField(100)) order.sessionId = m.GetField(new QuickFix.Fields.ExDestination()).getValue();
-                            }
-                            else if (Program.EXCH_CODE.Equals("Bloomberg", StringComparison.OrdinalIgnoreCase))
-                            {
-                                if (m.IsSetField(15)) order.currency = m.GetField(new QuickFix.Fields.Currency()).getValue();
-                                if (m.IsSetField(207)) order.bloom_exchCode = m.GetField(new QuickFix.Fields.SecurityExchange()).getValue();
-                                //if (m.IsSetField(76)) order.contrBroker = m.GetField(new QuickFix.Fields.ExecBroker()).getValue();
-                            }
-
-                            if (m.IsSetField(54))
-                                //order.direction = m.GetField(new QuickFix.Fields.Side()).getValue().ToString(); d
-                                order.direction = GetSideName(m.GetChar(54));
+                            if (m.IsSetField(54)) order.direction = GetSideName(m.GetChar(54));
                             if (m.IsSetField(151)) order.leavesQty = m.GetDecimal(151);
                             if (m.IsSetField(44)) order.price = m.GetDecimal(44);
                             if (m.IsSetField(38)) order.quantity = m.GetDecimal(38);
@@ -1098,21 +999,14 @@ GO
                             if (m.IsSetField(32)) order.quantityDeal = (long)m.GetDecimal(32);
                             if (m.IsSetField(6)) order.priceAvg = m.GetDecimal(6);
                             if (m.IsSetField(14)) order.quantityDealTotal = (long)m.GetDecimal(14);
-                            //if (m.IsSetField(126)) order.expirationDate = DateTime.Parse(m.GetString(126));
-                            if (m.IsSetField(59))
-                                //order.timeInForce = m.GetChar(59).ToString(); d
-                                order.timeInForce = GetTimeInForceName(m.GetChar(59));
+                            if (m.IsSetField(59)) order.timeInForce = GetTimeInForceName(m.GetChar(59));
                             try
                             {
                                 order.expirationDate = DateTime.ParseExact(m.ExpireDate.Value, "yyyyMMdd", CultureInfo.InvariantCulture);
                             }
                             catch { }
 
-
-                            //if (m.IsSetField(921)) order.cashQty = m.GetDecimal(921);
-                            if (m.IsSetField(39))
-                                //order.status = m.GetChar(39).ToString(); d
-                                order.status = GetOrdStatusName(m.GetChar(39));
+                            if (m.IsSetField(39)) order.status = GetOrdStatusName(m.GetChar(39));
                             if (m.IsSetField(60))
                             {
                                 var field = new QuickFix.Fields.TransactTime();
@@ -1126,31 +1020,10 @@ GO
                                 {
                                     order.executionTime = transTime;
                                 }
-                                //order.ExecutionTimeStr = transTime.ToString("yyyy-MM-dd HH:mm:ss");
+                                
                             }
 
                             if (m.IsSetField(64)) order.settlementDate = m.GetDateOnly(64);
-                            if (m.IsSetField(10500)) order.whoRemoved = m.GetString(10500);
-                            if (m.IsSetField(10501))
-                            {
-                                try
-                                {
-                                    var rawTimestamp = m.GetString(10501);
-                                    if (DateTime.TryParseExact(rawTimestamp, "yyyyMMdd-HH:mm:ss.fff", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed))
-                                    {
-                                        order.whenRemoved = parsed;
-                                    }
-                                    else
-                                    {
-                                        order.whenRemoved = DateTime.Parse(rawTimestamp); // fallback
-                                    }
-                                }
-                                catch
-                                {
-                                    order.whenRemoved = null;// DateTime.MinValue; // default fallback
-                                }
-                            }
-
                             if (m.IsSetField(529))
                             {
                                 order.isMMorder = m.GetString(529) == "5" ? (byte)1 : (byte)0;
@@ -2523,11 +2396,12 @@ GO
                     req.Symbol = new Symbol(ord.Ticker);
                     req.Side = side;
                     req.Account = new Account(ord.Acc);
-                    var partyIdGroup = new QuickFix.FIX50SP1.OrderCancelRequest.NoPartyIDsGroup();                    
-                    partyIdGroup.SetField(new PartyID(ord.SenderSubID));
+                    
+                    var partyIdGroup = new QuickFix.FIX50SP1.OrderCancelRequest.NoPartyIDsGroup();                                        
+                    partyIdGroup.SetField(new PartyID(ord.Investor));
                     partyIdGroup.SetField(new PartyIDSource(char.Parse(ord.PartyIDSource)));
                     partyIdGroup.SetField(new PartyRole(int.Parse(ord.PartyRole)));
-                    req.AddGroup(partyIdGroup);
+                    req.AddGroup(partyIdGroup);                    
 
                     req.Header.GetString(Tags.BeginString);
 
