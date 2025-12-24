@@ -2506,6 +2506,33 @@ GO
 
                     SendMessage(req);
                 }
+                else if (Program.EXCH_CODE == "AIX_SP1")
+                {
+                    Side side;
+                    if (ord.Direction == "CANCEL_BUY") side = new Side(Side.BUY);
+                    else if (ord.Direction == "CANCEL_SELL") side = new Side(Side.SELL);
+                    else
+                    {
+                        //здесь нужно поставить логирование
+                        return;
+                    }
+                    QuickFix.FIX50SP1.OrderCancelRequest req = new QuickFix.FIX50SP1.OrderCancelRequest();
+                    if (!string.IsNullOrEmpty(ord.OrigClOrderID)) req.OrigClOrdID = new OrigClOrdID(ord.OrigClOrderID.ToString());
+                    req.ClOrdID = new ClOrdID(ord.Id.ToString());
+                    req.TransactTime = new TransactTime(DateTime.Now);
+                    req.Symbol = new Symbol(ord.Ticker);
+                    req.Side = side;
+                    req.Account = new Account(ord.Acc);
+                    var partyIdGroup = new QuickFix.FIX50SP1.OrderCancelRequest.NoPartyIDsGroup();                    
+                    partyIdGroup.SetField(new PartyID(ord.SenderSubID));
+                    partyIdGroup.SetField(new PartyIDSource(char.Parse(ord.PartyIDSource)));
+                    partyIdGroup.SetField(new PartyRole(int.Parse(ord.PartyRole)));
+                    req.AddGroup(partyIdGroup);
+
+                    req.Header.GetString(Tags.BeginString);
+
+                    SendMessage(req);
+                }
                 else
                 {
                     Side side;
@@ -2550,6 +2577,7 @@ GO
                 
                 DateTime startTime = DateTime.Now;
 
+                //List<Int32> lstIdSended = new List<Int32>(); 
                 foreach ( var r in rz)
                 {
 
@@ -2567,6 +2595,7 @@ GO
                     else if (r.Direction.ToUpper() == "CANCEL_BUY" || r.Direction.ToUpper() == "CANCEL_SELL")
                     {
                         cancelOrder(r);
+                        r.Processed_Status = "send";
                         continue;
                     }
                     else
@@ -2617,7 +2646,8 @@ GO
                         ord1.Header.GetString(Tags.BeginString);
 
                         SendMessage(ord1);
-                        
+                        r.Processed_Status = "send";
+
                     }
                     else if (Program.EXCH_CODE == "AIX_SP1")
                     {
@@ -2631,21 +2661,8 @@ GO
 
                         ord1.Set(new Symbol(r.Ticker));
                         ord1.Set(new HandlInst('1'));
-                        int qty = 0;
-                        bool ok = int.TryParse(r.Quantity.Value.ToString().Replace(",","."), out int rez);
-                        if (ok) qty = rez;
-                        else
-                        {
-                            int.TryParse(r.Quantity.Value.ToString().Replace(".", ","), out int rez1);
-                            if (ok) qty = rez1;
-                            else
-                            {
-                                Console.WriteLine("Не удалось преобразовать " + r.Quantity.Value.ToString() + " в Int");
-                                continue;
-                            }
-                        }
 
-                        ord1.Set(new OrderQty(qty));
+                        ord1.Set(new OrderQty(Convert.ToInt32(r.Quantity.Value, CultureInfo.InvariantCulture)));
 
                         s = ' ';
                         if (r.TimeInForce.ToUpper() == "DAY") s = TimeInForce.DAY;
@@ -2665,21 +2682,7 @@ GO
 
                         if (ordType.Value == OrdType.LIMIT || ordType.Value == OrdType.STOP_LIMIT)
                         {
-                            decimal price = 0;
-                            bool ok1 = decimal.TryParse(r.Price.Value.ToString().Replace(",","."), out decimal rez1);
-                            if (ok1) price = rez1;
-                            else
-                            {
-                                ok1 = decimal.TryParse(r.Price.Value.ToString().Replace(".", ","), out decimal rez2);
-                                if (ok1) price = rez2;
-                                else
-                                {
-                                    Console.WriteLine("Не удалось преобразовать " + r.Price.Value.ToString() + " в Decimal");
-                                    continue;
-                                }
-                            }
-                            
-                            ord1.Set(new Price(price));
+                            ord1.Set(new Price(Convert.ToInt32(r.Price.Value, CultureInfo.InvariantCulture)));
                         }
 
                         if (r.MaxFloor is not null)
@@ -2701,6 +2704,7 @@ GO
                         ord1.Header.GetString(Tags.BeginString);
 
                         SendMessage(ord1);
+                        r.Processed_Status = "send";
 
                     }
 
@@ -2769,9 +2773,9 @@ GO
                         ord1.Header.GetString(Tags.BeginString);
 
                         SendMessage(ord1);
+                        r.Processed_Status = "send";
 
                     }
-
                 
                     else if (Program.EXCH_CODE.Contains("KASE"))
                     {
@@ -2835,6 +2839,7 @@ GO
                         ord1.Header.GetString(Tags.BeginString);
 
                         SendMessage(ord1);
+                        r.Processed_Status = "send";
 
                     }
                     else if (Program.EXCH_CODE == "ITS")
@@ -2946,11 +2951,14 @@ GO
 
           
                         SendMessage(ord1);
+                        r.Processed_Status = "send";
+                        //lstIdSended.Add(r.Id);
 
                     }
 
                 }
-                rz.ForEach(r => { r.Processed_Status = "processed"; r.Processed_Time = DateTime.Now; });
+                //rz.Where(r=>lstIdSended.Contains(r.Id)).ToList().ForEach(r => { r.Processed_Status = "processed"; r.Processed_Time = DateTime.Now; });
+                rz.Where(r => r.Processed_Status =="send").ToList().ForEach(r => { r.Processed_Status = "processed"; r.Processed_Time = DateTime.Now; });
 
                 db.SaveChanges();
 
