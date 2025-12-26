@@ -2489,7 +2489,7 @@ GO
 
                         ord1.Set(new Symbol(r.Ticker));
                         ord1.Set(new HandlInst('1'));
-                        ord1.Set(new OrderQty(int.Parse(r.Quantity.Value.ToString())));
+                        ord1.Set(new OrderQty((int)r.Quantity.Value));
 
                         s = ' ';
                         if (r.TimeInForce.ToUpper() == "DAY") s = TimeInForce.DAY;
@@ -2536,7 +2536,7 @@ GO
                         ord1.Set(new Symbol(r.Ticker));
                         ord1.Set(new HandlInst('1'));
 
-                        ord1.Set(new OrderQty(Convert.ToInt32(r.Quantity.Value, CultureInfo.InvariantCulture)));
+                        ord1.Set(new OrderQty((int)r.Quantity.Value));
 
                         s = ' ';
                         if (r.TimeInForce.ToUpper() == "DAY") s = TimeInForce.DAY;
