@@ -45,7 +45,7 @@ namespace TradeClient
                 DailyLogger.Log($"[TaskScheduler] Unobserved task exception: {args.Exception.Message}");
             };
             #if DEBUG
-                ADAPTER = "aix"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy kaseCurr kaseCurrDropCopy kaseSpot kaseSpotDropCopy its aix_SP1
+                ADAPTER = "kaseSpot"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy kaseCurr kaseCurrDropCopy kaseSpot kaseSpotDropCopy its aix_SP1
 #endif
 
             try {ADAPTER = args[0]; }catch(Exception ex){}
@@ -174,7 +174,7 @@ namespace TradeClient
 
                 //SharedData.CheckFieldsHaveValues
 
-                /*
+                
                 TradeClientApp application = new TradeClientApp(settings);
                 IMessageStoreFactory storeFactory = new FileStoreFactory(settings);
                 //ILogFactory logFactory = new ScreenLogFactory(settings);
@@ -187,12 +187,12 @@ namespace TradeClient
                 initiator.Start();
                 application.Run();
                 //initiator.Stop();
-                */
-              
+                
+              /*
                var app = new FailoverApp();
                app.Start();
                //app.Run();
-                
+                */
 
             }
             catch (Exception e)

@@ -64,9 +64,15 @@ namespace TradeClient
 
         public void OnCreate(SessionID sessionId)
         {
-            var sessionConfig = _settings.Get(sessionId);
-            _sessionPasswords[sessionId] = sessionConfig.GetString("Password");
+            try
+            {
+                var sessionConfig = _settings.Get(sessionId);
+                _sessionPasswords[sessionId] = sessionConfig.GetString("Password");
+            }
+            catch(Exception err)
+            {
 
+            }
             _session = Session.LookupSession(sessionId);
             if (_session is null)
                 throw new ApplicationException("Somehow session is not found");
@@ -375,6 +381,45 @@ GO
                     catch (Exception e)
                     {
                         DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    }
+                }
+
+            }
+            else if (message is QuickFix.FIX44.Reject rj)
+            {
+                if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+                {
+                    if (isDebug) Console.WriteLine("Received Reject");
+                    try
+                    {
+                        using (var db = new MyDbContext())
+                        {
+                            int clOrdId = 0;
+
+                            try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(rj.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
+
+                            var order = new orders();
+                            order.msgNum = int.Parse(rj.Header.GetString(34));
+                            order.orderReferenceExchange = $"MsgType = {rj.Header.GetString(35)}";
+                            order.status = "REJECTED";
+                            order.clientID = "RefMsgType = " + rj.RefMsgType.Value;
+                            order.executionTime = rj.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime);
+                            order.fullMessage = rj.ToJSON();
+                            string text = rj.GetString(58);
+                            //string text = rj.IsSetField(QuickFix.Fields.Tags.Text) ? rj.GetString(QuickFix.Fields.Tags.Text) : string.Empty;
+                            order.comments = $"Tag=58, Reason={text}";
+                            order.exchangeCode = Program.EXCH_CODE;
+                            order.serial = rj.RefSeqNum.Value.ToString();
+
+                            if (clOrdId > 0) order.clientOrderID = clOrdId.ToString();
+
+                            db.orders.Add(order);
+                            db.SaveChanges();
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(rj));
                     }
                 }
 
@@ -2000,7 +2045,35 @@ GO
 
         public void OnMessage(QuickFix.FIX44.OrderCancelReject m, SessionID s)
         {
-            if(isDebug) Console.WriteLine("Received OrderCancelReject");
+            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            {
+                if (isDebug) Console.WriteLine("Received OrderCancelReject");
+                try
+                {
+                    using (var db = new MyDbContext())
+                    {
+                        var order = new orders();
+                        order.msgNum = int.Parse(m.Header.GetString(34));
+                        order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
+                        order.status = "REJECTED";
+                        //order.clientID = "RefMsgType = " + m.RefMsgType.Value;
+                        order.executionTime = m.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime);
+                        order.fullMessage = m.ToJSON();
+                        string text = m.IsSetField(QuickFix.Fields.Tags.Text) ? m.GetString(QuickFix.Fields.Tags.Text) : string.Empty;
+                        order.comments = $"Reason={m.CxlRejReason} {text}";
+                        order.exchangeCode = Program.EXCH_CODE;
+                        order.serial = m.OrderID.Value.ToString();
+                        order.clientOrderID = m.ClOrdID.Value;
+
+                        OrdersCache.Add(order);
+
+                    }
+                }
+                catch (Exception e)
+                {
+                    DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                }
+            }
         }
         #endregion
 
