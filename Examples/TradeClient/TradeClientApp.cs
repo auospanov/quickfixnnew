@@ -60,12 +60,20 @@ namespace TradeClient
         public IInitiator? MyInitiator = null;
 
         #region IApplication interface overrides
+        private readonly Dictionary<SessionID, string> _sessionPasswords = new();
 
         public void OnCreate(SessionID sessionId)
         {
+            var sessionConfig = _settings.Get(sessionId);
+            _sessionPasswords[sessionId] = sessionConfig.GetString("Password");
+
             _session = Session.LookupSession(sessionId);
             if (_session is null)
                 throw new ApplicationException("Somehow session is not found");
+        }
+        public void OnDisconnect()
+        {
+            //this.MyInitiator.Stop();
         }
         public static bool isStop(String connectionString)
         {
@@ -382,9 +390,11 @@ GO
                     //если найден тег 58, то проверка на код "209" - пароль изменен успешно
                     if (rz58 == "0")
                     {
+                        _sessionPasswords[sessionId] = Program.newPassword;
                         //запись в конфигурационный файл нового пароля
                         Program.recNewPassword();
                     }
+                   
 
                 }
 
@@ -400,7 +410,11 @@ GO
                 if (sessionConfig.Has("Username") && sessionConfig.Has("Password")) //add 03.11.2025 for AIX
                 {
                     message.SetField(new QuickFix.Fields.Username(sessionConfig.GetString("Username")));
+                    
                     message.SetField(new QuickFix.Fields.Password(sessionConfig.GetString("Password")));
+                    string pwd = _sessionPasswords[sessionId];
+                    message.SetField(new QuickFix.Fields.Password(pwd));
+
                     if (isDebug) Console.WriteLine($"Injected Username/Password for session {sessionId}");
                 }
                 else if (sessionConfig.Has("Password")) //(sessionConfig.Has("SenderCompID") && 
@@ -425,6 +439,8 @@ GO
                     //newPassword = "4444qwer";
 
                     message.SetField(new NewPassword(newPassword));
+
+                    Program.newPassword = newPassword;
                 }
                 //временно добавил 07.11.2025
                 if (sessionConfig.Has("ResetSeqNumFlag"))

@@ -34,7 +34,9 @@ public class SessionSettings
     public const string SOCKET_ACCEPT_HOST = "SocketAcceptHost";
     public const string SOCKET_ACCEPT_PORT = "SocketAcceptPort";
     public const string SOCKET_CONNECT_HOST = "SocketConnectHost";
+    public const string SOCKET_CONNECT_HOST1 = "SocketConnectHost1";
     public const string SOCKET_CONNECT_PORT = "SocketConnectPort";
+    public const string SOCKET_CONNECT_PORT1 = "SocketConnectPort1";
     public const string RECONNECT_INTERVAL = "ReconnectInterval";
     public const string FILE_LOG_PATH = "FileLogPath";
     public const string FILE_STORE_PATH = "FileStorePath";

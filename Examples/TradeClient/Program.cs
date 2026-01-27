@@ -26,7 +26,7 @@ namespace TradeClient
         //public static string changePasswordDay = "";
         public static bool isChangePassword=false;
         public static string tmpPassword = string.Empty;
-
+        public static string newPassword = string.Empty;
         [STAThread]
         static void Main(string[] args)
         {
@@ -165,7 +165,7 @@ namespace TradeClient
                 if (ValidateFieldsOutOfOrder == "Y") SharedData.CheckFieldsOutOfOrder = true;
                 else SharedData.CheckFieldsOutOfOrder = false;
 
-               
+
                 //---------------------------------------------------------------------------------------
 
 
@@ -174,7 +174,7 @@ namespace TradeClient
 
                 //SharedData.CheckFieldsHaveValues
 
-
+                /*
                 TradeClientApp application = new TradeClientApp(settings);
                 IMessageStoreFactory storeFactory = new FileStoreFactory(settings);
                 //ILogFactory logFactory = new ScreenLogFactory(settings);
@@ -187,6 +187,13 @@ namespace TradeClient
                 initiator.Start();
                 application.Run();
                 //initiator.Stop();
+                */
+              
+               var app = new FailoverApp();
+               app.Start();
+               //app.Run();
+                
+
             }
             catch (Exception e)
             {
