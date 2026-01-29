@@ -23,7 +23,7 @@ using ApplicationException = System.ApplicationException;
 using Exception = System.Exception;
 namespace TradeClient
 {
-    public class TradeClientApp : QuickFix.MessageCracker, QuickFix.IApplication
+    public class TradeClientApp1 : QuickFix.MessageCracker, QuickFix.IApplication
     {
         public bool isDebug = false;
         private SessionSettings _settings;
@@ -33,7 +33,7 @@ namespace TradeClient
         private readonly int _timerBatchCollectMilliseconds = 10_000; // например, 10 секунд
         private readonly int portionSendOrder = 100;
         //private readonly int _timerIntervalMilliseconds = int.Parse(Program.GetValueByKey(Program.cfg, "timerIntervalMilliseconds"));
-        public TradeClientApp(SessionSettings settings)
+        public TradeClientApp1(SessionSettings settings)
         {
 
             _settings = settings;
