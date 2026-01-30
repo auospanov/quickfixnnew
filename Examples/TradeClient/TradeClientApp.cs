@@ -545,7 +545,13 @@ GO
             int seqNum = 0;
             int clOrdId = 0;
 
-            if (message is QuickFix.FIX44.NewOrderSingle || message is QuickFix.FIX50SP2.NewOrderSingle || message is QuickFix.FIX50SP1.NewOrderSingle)
+            if (message is QuickFix.FIX44.NewOrderSingle
+                || message is QuickFix.FIX44.OrderCancelRequest
+                || message is QuickFix.FIX50SP2.NewOrderSingle
+                || message is QuickFix.FIX50SP2.OrderCancelRequest
+                || message is QuickFix.FIX50SP1.NewOrderSingle
+                || message is QuickFix.FIX50SP1.OrderCancelRequest
+                )
             {
                 seqNum = message.Header.GetInt(Tags.MsgSeqNum);
                 clOrdId = int.Parse(message.GetString(11));
@@ -557,6 +563,7 @@ GO
                         if(oneRec != null)
                         {
                             oneRec.msgNum = seqNum;
+                            oneRec.Processed_Status = "send"; //добавил 30.01.2026
                             db.SaveChanges();
                         }                        
                     }
@@ -1005,11 +1012,11 @@ GO
                     }
                     catch { }
 
-            
-            
                     order.exchangeCode = Program.EXCH_CODE;
                     order.isReal = Program.ISREAL;
                     order.msgNum = int.Parse(m.Header.GetString(34));
+                    order.fullMessage = m.ToJSON();
+
                     OrdersCache.Add(order); // замените на нужную вам структуру хранения (например, Add to List/Queue/Db)
                 }
                 }
@@ -2521,7 +2528,7 @@ GO
                     new TransactTime(DateTime.Now));
 
                     //orderCancelRequest.Set(new OrderID(ord.OrigClOrderID.ToString()));
-                    orderCancelRequest.Set(new OrderQty(int.Parse(ord.Quantity.Value.ToString())));
+                    orderCancelRequest.Set(new OrderQty((int)ord.Quantity.Value));
                     SendMessage(orderCancelRequest);
                 }
                 
@@ -2536,13 +2543,17 @@ GO
         //проверка наличия новых необработанных приказов
         public void checkNewOrders()
         {
+            /*
+             * если появятся новые тип сообщений(сечас NewSingleOrder, CancelOrderRequest), то надо внести эти изменения в метод ToApp  
+            */
             try
             {
                 MyDbContext db = new MyDbContext();
                 //var rz1 = db.newOrders.Where(r => r.Processed_Status is null);
 
                 var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
-                    && r.ExchangeCode == Program.EXCH_CODE && ((r.ExpirationDate == null && r.TimeInForce != "DAY") || r.ExpirationDate >= DateTime.UtcNow.Date) //берем только те, которые еще не просрочились 
+                    && r.ExchangeCode == Program.EXCH_CODE
+                    && ((r.ExpirationDate == null && r.TimeInForce != "DAY") || r.ExpirationDate >= DateTime.UtcNow.Date) //берем только те, которые еще не просрочились 
                     ).OrderBy(r=>r.Id).Take(portionSendOrder).ToList();
                 
                 DateTime startTime = DateTime.Now;
@@ -2616,7 +2627,7 @@ GO
                         ord1.Header.GetString(Tags.BeginString);
 
                         SendMessage(ord1);
-                        r.Processed_Status = "send";
+                        //r.Processed_Status = "send";
 
                     }
                     else if (Program.EXCH_CODE == "AIX_SP1")
@@ -2674,7 +2685,7 @@ GO
                         ord1.Header.GetString(Tags.BeginString);
 
                         SendMessage(ord1);
-                        r.Processed_Status = "send";
+                        //r.Processed_Status = "send";
 
                     }
 
@@ -2743,7 +2754,7 @@ GO
                         ord1.Header.GetString(Tags.BeginString);
 
                         SendMessage(ord1);
-                        r.Processed_Status = "send";
+                        //r.Processed_Status = "send";
 
                     }
                 
@@ -2809,7 +2820,7 @@ GO
                         ord1.Header.GetString(Tags.BeginString);
 
                         SendMessage(ord1);
-                        r.Processed_Status = "send";
+                        //r.Processed_Status = "send";
 
                     }
                     else if (Program.EXCH_CODE == "ITS")
@@ -2921,14 +2932,14 @@ GO
 
           
                         SendMessage(ord1);
-                        r.Processed_Status = "send";
+                        //r.Processed_Status = "send";
                         //lstIdSended.Add(r.Id);
 
                     }
 
                 }
-                //rz.Where(r=>lstIdSended.Contains(r.Id)).ToList().ForEach(r => { r.Processed_Status = "processed"; r.Processed_Time = DateTime.Now; });
-                rz.Where(r => r.Processed_Status =="send").ToList().ForEach(r => { r.Processed_Status = "processed"; r.Processed_Time = DateTime.Now; });
+                // убрал 30.01.2026 установку статуса перенесли в метод ToApp
+                //rz.Where(r => r.Processed_Status =="send").ToList().ForEach(r => { r.Processed_Status = "processed"; r.Processed_Time = DateTime.Now; });
 
                 db.SaveChanges();
 
