@@ -563,7 +563,8 @@ GO
                         if(oneRec != null)
                         {
                             oneRec.msgNum = seqNum;
-                            oneRec.Processed_Status = "send"; //добавил 30.01.2026
+                            oneRec.Processed_Status = "sent"; //добавил 30.01.2026
+                            oneRec.Processed_Time = DateTime.Now;
                             db.SaveChanges();
                         }                        
                     }
@@ -2529,6 +2530,13 @@ GO
 
                     //orderCancelRequest.Set(new OrderID(ord.OrigClOrderID.ToString()));
                     orderCancelRequest.Set(new OrderQty((int)ord.Quantity.Value));
+
+                    var partyIdGroup = new QuickFix.FIX44.OrderCancelRequest.NoPartyIDsGroup();
+                    partyIdGroup.SetField(new PartyID(ord.SenderSubID));
+                    partyIdGroup.SetField(new PartyIDSource(char.Parse(ord.PartyIDSource)));
+                    partyIdGroup.SetField(new PartyRole(int.Parse(ord.PartyRole)));
+                    orderCancelRequest.AddGroup(partyIdGroup);
+
                     SendMessage(orderCancelRequest);
                 }
                 
