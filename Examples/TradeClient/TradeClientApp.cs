@@ -198,6 +198,21 @@ GO
             {
                 Environment.Exit(0);
             }
+            //try
+            //{
+            //    if (Program.isMustStartedAfterChangePassword)
+            //    {
+            //        Thread.Sleep(5000);
+            //        var sessionId = _sessionPasswords.Keys.First();
+            //        var session = Session.LookupSession(sessionId);
+            //        session.Logon();
+            //        Program.isMustStartedAfterChangePassword = false;
+            //    }
+            //}
+            //catch(Exception err)
+            //{
+
+            //}
             if (_session != null && _session.IsLoggedOn)
             {
                 if (isDebug) Console.WriteLine("Session active. You can send periodic messages here.");
@@ -442,7 +457,11 @@ GO
                         var session = Session.LookupSession(sessionId);
                         if (session != null)
                         {
-                            session.Logout();
+                            _settings.Get(sessionId).SetString("Password", _sessionPasswords[sessionId]);
+                            //session.Logout();
+                            //Thread.Sleep(4000);
+                            //session.Logon();
+                            //Program.isMustStartedAfterChangePassword = true;
                         }
 
                     }
