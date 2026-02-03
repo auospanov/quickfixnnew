@@ -1,18 +1,15 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using System;
 
 namespace TradeClient
 {
     /// <summary>
     /// Фабрика для создания экземпляров DbContext с единым пулом подключений
-    /// Использует AddDbContextPool для реального пула подключений Entity Framework
+    /// Использует переиспользование опций и пул подключений ADO.NET
     /// </summary>
     public class DbContextFactory
     {
-        private readonly string _connectionString;
-        private readonly IServiceProvider _serviceProvider;
-        private readonly IDbContextFactory<MyDbContext> _factory;
+        private readonly DbContextOptions<MyDbContext> _options;
 
         private static DbContextFactory? _instance;
         private static readonly object _lock = new object();
@@ -40,28 +37,22 @@ namespace TradeClient
 
         private DbContextFactory(string connectionString)
         {
-            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            if (string.IsNullOrEmpty(connectionString))
+                throw new ArgumentNullException(nameof(connectionString));
             
-            // Создаем ServiceProvider с пулом DbContext
-            // AddDbContextPool переиспользует экземпляры DbContext и их подключения к БД
-            // Это означает, что подключения НЕ закрываются при Dispose(), а возвращаются в пул
-            _serviceProvider = new ServiceCollection()
-                .AddEntityFrameworkSqlServer()
-                .AddDbContextPool<MyDbContext>(options => 
-                {
-                    options.UseSqlServer(_connectionString, sqlOptions =>
-                    {
-                        sqlOptions.EnableRetryOnFailure(
-                            maxRetryCount: 3,
-                            maxRetryDelay: TimeSpan.FromSeconds(30),
-                            errorNumbersToAdd: null);
-                    });
-                }, poolSize: 128) // Размер пула DbContext (стандартное значение)
-                .BuildServiceProvider();
+            // Настраиваем опции для DbContext один раз и переиспользуем их
+            // Пул подключений ADO.NET настроен в строке подключения (Min Pool Size, Max Pool Size)
+            // Это обеспечивает переиспользование физических подключений к БД
+            var optionsBuilder = new DbContextOptionsBuilder<MyDbContext>();
+            optionsBuilder.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 3,
+                    maxRetryDelay: TimeSpan.FromSeconds(30),
+                    errorNumbersToAdd: null);
+            });
 
-            // Получаем фабрику из ServiceProvider
-            // При использовании AddDbContextPool, фабрика автоматически использует пул
-            _factory = _serviceProvider.GetRequiredService<IDbContextFactory<MyDbContext>>();
+            _options = optionsBuilder.Options;
         }
 
         /// <summary>
@@ -82,13 +73,12 @@ namespace TradeClient
         }
 
         /// <summary>
-        /// Создает или получает экземпляр DbContext из пула
-        /// При использовании AddDbContextPool, Dispose() возвращает контекст в пул,
-        /// а не закрывает подключение к БД
+        /// Создает новый экземпляр DbContext
+        /// Подключения к БД переиспользуются через пул ADO.NET (настроен в строке подключения)
         /// </summary>
         public MyDbContext CreateDbContext()
         {
-            return _factory.CreateDbContext();
+            return new MyDbContext(_options);
         }
 
         /// <summary>
@@ -100,10 +90,6 @@ namespace TradeClient
             {
                 lock (_lock)
                 {
-                    if (_instance?._serviceProvider is IDisposable disposable)
-                    {
-                        disposable.Dispose();
-                    }
                     _instance = null;
                 }
             }
