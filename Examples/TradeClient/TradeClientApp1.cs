@@ -564,6 +564,7 @@ GO
                             db.SaveChanges();
                         }                        
                     }
+                }
                 catch (Exception e)
                 {
                     OrderSender.writeLog("Exception oneRec = " + e.Message);
@@ -1433,7 +1434,6 @@ GO
         //            using (var wrapper = DbContextFactory.Instance.CreateDbContext())
         //            {
         //                var db = wrapper.Context;
-        //                var order = new orders();
         //                var order = new orders();
         //                order.clientOrderID = m.ClOrdID.Value;
         //                order.clientOrderID = m.OrigClOrdID.Value;

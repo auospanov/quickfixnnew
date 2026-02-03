@@ -861,10 +861,9 @@ GO
              using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var db = wrapper.Context;
-             {
-                db.heartbeat.Add(new heartbeat() {  exchangeCode = Program.ADAPTER, lastTime  =DateTime.Now, isReal = Program.ISREAL, isMM = 0});
-                db.SaveChanges();
-             }
+                    db.heartbeat.Add(new heartbeat() {  exchangeCode = Program.ADAPTER, lastTime  =DateTime.Now, isReal = Program.ISREAL, isMM = 0});
+                    db.SaveChanges();
+                }
             }
             catch(Exception e) {
                 DailyLogger.Log($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
@@ -878,10 +877,9 @@ GO
                 if (isDebug) Console.WriteLine("Received ExecutionReport");
                 try { 
                      using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
-                {
-                    var order = new orders();
+                    {
+                        var db = wrapper.Context;
+                        var order = new orders();
 
                     // ClOrdID и OrigClOrdID
                     if (m.ExecType.getValue() == QuickFix.Fields.ExecType.CANCELED || m.ExecType.getValue() == QuickFix.Fields.ExecType.PENDING_CANCEL)
@@ -1049,7 +1047,7 @@ GO
                     order.fullMessage = m.ToJSON();
 
                     OrdersCache.Add(order); // замените на нужную вам структуру хранения (например, Add to List/Queue/Db)
-                }
+                    }
                 }
                 catch(Exception e) {
                     DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
@@ -1066,9 +1064,8 @@ GO
                     if (Program.EXCH_CODE == "AIX_SP1")
                     {
                         using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                         {
+                            var db = wrapper.Context;
                             var order = new orders();
 
                             // ClOrdID и OrigClOrdID
@@ -1202,9 +1199,8 @@ GO
                     if (Program.EXCH_CODE == "ITS")
                     {
                         using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                         {
+                            var db = wrapper.Context;
                             var ord = new orders();
                             ord.msgNum = long.Parse(m.Header.GetString(34));
                             ord.fullMessage = m.ToJSON();
@@ -1259,14 +1255,13 @@ GO
                             }
 
                             OrdersCache.Add(ord);
+                            }
                         }
-                    }
                     else
                     {
                         using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                         {
+                            var db = wrapper.Context;
                             var order = new orders();
 
                             // ClOrdID и OrigClOrdID
@@ -1466,9 +1461,8 @@ GO
         //        try
         //        {
         //            using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
         //            {
+        //                var db = wrapper.Context;
         //                var order = new orders();
         //                order.clientOrderID = m.ClOrdID.Value;
         //                order.clientOrderID = m.OrigClOrdID.Value;
@@ -1506,9 +1500,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         var order = new orders();
 
                         order.orderReferenceExchange = "MsgType = 3";
@@ -1521,7 +1514,6 @@ GO
                         db.orders.Add(order);
                         db.SaveChanges();
                     }
-                }
                 catch (Exception e)
                 {
                     DailyLogger.Log($"[FIX44.Reject] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
@@ -1539,9 +1531,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         var order = new orders();
                         //order.clientOrderID = m.ClOrdID.Value;
                         //order.clientOrderID = m.OrigClOrdID.Value;
@@ -1557,8 +1548,6 @@ GO
 
                         db.orders.Add(order);
                         db.SaveChanges();
-
-
                     }
                 }
                 catch (Exception e)
@@ -1576,9 +1565,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         int clOrdId = 0;
 
                         try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -1598,8 +1586,6 @@ GO
 
                         db.orders.Add(order);
                         db.SaveChanges();
-
-
                     }
                 }
                 catch (Exception e)
@@ -1616,9 +1602,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         int clOrdId = 0;
 
                         try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -1638,8 +1623,6 @@ GO
 
                         db.orders.Add(order);
                         db.SaveChanges();
-
-
                     }
                 }
                 catch (Exception e)
@@ -1656,9 +1639,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
-                    {                        
+                    {
+                        var db = wrapper.Context;
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
                         order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
