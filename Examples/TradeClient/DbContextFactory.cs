@@ -7,13 +7,34 @@ using System.Text.RegularExpressions;
 namespace TradeClient
 {
     /// <summary>
+    /// Обертка для DbContext из пула, которая управляет IServiceScope
+    /// </summary>
+    public class PooledDbContextWrapper : IDisposable
+    {
+        private readonly IServiceScope _scope;
+        public MyDbContext Context { get; }
+
+        public PooledDbContextWrapper(IServiceScope scope, MyDbContext context)
+        {
+            _scope = scope;
+            Context = context;
+        }
+
+        public void Dispose()
+        {
+            // Сначала освобождаем контекст (он вернется в пул)
+            // Затем освобождаем scope
+            _scope?.Dispose();
+        }
+    }
+
+    /// <summary>
     /// Фабрика для создания экземпляров DbContext с использованием пула контекстов
     /// Использует AddDbContextPool для эффективного управления контекстами и соединениями
     /// </summary>
     public class DbContextFactory
     {
         private static IServiceProvider? _serviceProvider;
-        private static IDbContextFactory<MyDbContext>? _dbContextFactory;
         private static readonly object _initLock = new object();
 
         /// <summary>
@@ -35,6 +56,7 @@ namespace TradeClient
                         
                         // AddDbContextPool - правильный способ для многопоточных приложений
                         // Он создает пул контекстов и правильно управляет соединениями
+                        // При использовании через IServiceScope контексты берутся из пула и переиспользуются
                         services.AddDbContextPool<MyDbContext>(options =>
                         {
                             options.UseSqlServer(cleanedConnectionString, sqlOptions =>
@@ -46,20 +68,7 @@ namespace TradeClient
                             });
                         }, poolSize: 128); // Размер пула контекстов
 
-                        // Создаем фабрику контекстов для явного создания экземпляров
-                        services.AddDbContextFactory<MyDbContext>(options =>
-                        {
-                            options.UseSqlServer(cleanedConnectionString, sqlOptions =>
-                            {
-                                sqlOptions.EnableRetryOnFailure(
-                                    maxRetryCount: 3,
-                                    maxRetryDelay: TimeSpan.FromSeconds(30),
-                                    errorNumbersToAdd: null);
-                            });
-                        });
-
                         _serviceProvider = services.BuildServiceProvider();
-                        _dbContextFactory = _serviceProvider.GetRequiredService<IDbContextFactory<MyDbContext>>();
                     }
                 }
             }
@@ -97,7 +106,7 @@ namespace TradeClient
         {
             get
             {
-                if (_dbContextFactory == null)
+                if (_serviceProvider == null)
                 {
                     throw new InvalidOperationException("DbContextFactory не инициализирована. Вызовите Initialize() перед использованием.");
                 }
@@ -111,20 +120,22 @@ namespace TradeClient
         }
 
         /// <summary>
-        /// Создает новый экземпляр DbContext из пула
-        /// Каждый вызов возвращает новый контекст, который можно безопасно использовать в одном потоке
-        /// После Dispose() контекст возвращается в пул, а соединение переиспользуется
+        /// Создает новый экземпляр DbContext из пула через IServiceScope
+        /// Каждый вызов возвращает обертку с контекстом из пула, который можно безопасно использовать в одном потоке
+        /// После Dispose() контекст возвращается в пул, а соединение переиспользуется через ADO.NET connection pooling
         /// </summary>
-        public MyDbContext CreateDbContext()
+        public PooledDbContextWrapper CreateDbContext()
         {
-            if (_dbContextFactory == null)
+            if (_serviceProvider == null)
             {
                 throw new InvalidOperationException("DbContextFactory не инициализирована.");
             }
             
-            // Создаем новый контекст из пула
-            // Это потокобезопасно - каждый поток получает свой контекст
-            return _dbContextFactory.CreateDbContext();
+            // Создаем scope для получения контекста из пула
+            // Это критически важно - без scope контексты не будут браться из пула AddDbContextPool
+            var scope = _serviceProvider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<MyDbContext>();
+            return new PooledDbContextWrapper(scope, context);
         }
 
         /// <summary>
@@ -147,7 +158,6 @@ namespace TradeClient
                         }
                         catch { }
                         _serviceProvider = null;
-                        _dbContextFactory = null;
                     }
                 }
             }
