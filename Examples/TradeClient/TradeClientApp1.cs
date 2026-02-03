@@ -151,7 +151,7 @@ GO
         private void TimerTick(object state)
         {
             if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1") {
-                using (var dataContext = new MyDbContext())
+                using (var dataContext = DbContextFactory.Instance.CreateDbContext())
                 {
                     List<quotesSimple> tempList = new List<quotesSimple>();
                     lock (quotesSimples)
