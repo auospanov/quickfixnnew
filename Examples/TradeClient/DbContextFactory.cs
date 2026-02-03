@@ -12,21 +12,24 @@ namespace TradeClient
     public class PooledDbContext : MyDbContext
     {
         private readonly SqlConnection _connection;
+        private bool _disposed = false;
 
         public PooledDbContext(DbContextOptions<MyDbContext> options, SqlConnection connection) : base(options)
         {
             _connection = connection;
         }
 
-        protected override void Dispose(bool disposing)
+        public new void Dispose()
         {
-            if (disposing)
+            if (!_disposed)
             {
                 // Очищаем трекер изменений
                 ChangeTracker.Clear();
                 
                 // Возвращаем подключение в пул вместо закрытия
                 DbContextFactory.Instance.ReturnConnection(_connection);
+                
+                _disposed = true;
             }
             // НЕ вызываем base.Dispose() чтобы не закрывать подключение
         }
