@@ -1,19 +1,25 @@
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace TradeClient
 {
     /// <summary>
     /// Обертка для DbContext, которая игнорирует Dispose() для использования в using
+    /// Обеспечивает потокобезопасный доступ к контексту
     /// </summary>
     public class DisposableDbContextWrapper : IDisposable
     {
         private readonly MyDbContext _context;
+        private readonly SemaphoreSlim _semaphore;
 
-        public DisposableDbContextWrapper(MyDbContext context)
+        public DisposableDbContextWrapper(MyDbContext context, SemaphoreSlim semaphore)
         {
             _context = context;
+            _semaphore = semaphore;
+            // Захватываем семафор при создании обертки
+            _semaphore.Wait();
         }
 
         public MyDbContext Context => _context;
@@ -38,6 +44,11 @@ namespace TradeClient
             {
                 // Игнорируем ошибки при очистке трекера (например, если модель еще создается)
             }
+            finally
+            {
+                // Освобождаем семафор, чтобы другие потоки могли использовать контекст
+                _semaphore.Release();
+            }
         }
     }
 
@@ -48,7 +59,7 @@ namespace TradeClient
     public class DbContextFactory
     {
         private readonly MyDbContext _sharedDbContext;
-        private readonly object _lock = new object();
+        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1); // Только один поток может использовать контекст одновременно
 
         private static DbContextFactory? _instance;
         private static readonly object _instanceLock = new object();
@@ -140,12 +151,14 @@ namespace TradeClient
         /// <summary>
         /// Возвращает обертку для единого долгоживущего DbContext
         /// Можно использовать в using - Dispose() не закроет подключение
+        /// Обеспечивает потокобезопасный доступ к контексту
         /// </summary>
         public DisposableDbContextWrapper CreateDbContext()
         {
             // Возвращаем обертку вокруг одного и того же контекста для всех операций
             // Подключение остается открытым на протяжении жизни приложения
-            return new DisposableDbContextWrapper(_sharedDbContext);
+            // Семафор гарантирует, что только один поток может использовать контекст одновременно
+            return new DisposableDbContextWrapper(_sharedDbContext, _semaphore);
         }
 
         /// <summary>
@@ -161,8 +174,18 @@ namespace TradeClient
                     {
                         try
                         {
-                            // Закрываем долгоживущий контекст и его подключение
-                            _instance._sharedDbContext?.Dispose();
+                            // Ждем, пока все операции с контекстом завершатся
+                            _instance._semaphore.Wait();
+                            try
+                            {
+                                // Закрываем долгоживущий контекст и его подключение
+                                _instance._sharedDbContext?.Dispose();
+                            }
+                            finally
+                            {
+                                _instance._semaphore.Release();
+                            }
+                            _instance._semaphore.Dispose();
                         }
                         catch { }
                         _instance = null;
