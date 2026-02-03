@@ -205,9 +205,8 @@ GO
                 if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1")
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         var intrsView = db.instrsView.ToList();
 
                         var updatedInstrs = new List<instrsView>();
@@ -339,13 +338,11 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         db.heartbeat.Add(new heartbeat() { exchangeCode = Program.ADAPTER, lastTime = DateTime.Now, isReal = Program.ISREAL, isMM = 0 });
                         db.SaveChanges();
                     }
-                }
                 catch (Exception e)
                 {
                     DailyLogger.Log($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(message));
@@ -359,9 +356,8 @@ GO
                     try
                     {
                         using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                         {
+                            var db = wrapper.Context;
                             int clOrdId = 0;
 
                             try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -399,9 +395,8 @@ GO
                     try
                     {
                         using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                         {
+                            var db = wrapper.Context;
                             int clOrdId = 0;
 
                             try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(rj.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -560,9 +555,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         var oneRec = db.NewOrders.Where(r=>r.Id==clOrdId).FirstOrDefault();
                         if(oneRec != null)
                         {
@@ -570,7 +564,6 @@ GO
                             db.SaveChanges();
                         }                        
                     }
-                }
                 catch (Exception e)
                 {
                     OrderSender.writeLog("Exception oneRec = " + e.Message);
@@ -837,13 +830,11 @@ GO
         {
             try { 
              using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
              {
-                db.heartbeat.Add(new heartbeat() {  exchangeCode = Program.ADAPTER, lastTime  =DateTime.Now, isReal = Program.ISREAL, isMM = 0});
-                db.SaveChanges();
+                 var db = wrapper.Context;
+                 db.heartbeat.Add(new heartbeat() {  exchangeCode = Program.ADAPTER, lastTime  =DateTime.Now, isReal = Program.ISREAL, isMM = 0});
+                 db.SaveChanges();
              }
-            }
             catch(Exception e) {
                 DailyLogger.Log($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
             }
@@ -856,10 +847,9 @@ GO
                 if (isDebug) Console.WriteLine("Received ExecutionReport");
                 try { 
                      using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
-                {
-                    var order = new orders();
+                     {
+                         var db = wrapper.Context;
+                         var order = new orders();
 
                     // ClOrdID и OrigClOrdID
                     if (m.ExecType.getValue() == QuickFix.Fields.ExecType.CANCELED || m.ExecType.getValue() == QuickFix.Fields.ExecType.PENDING_CANCEL)
@@ -1044,9 +1034,8 @@ GO
                     if (Program.EXCH_CODE == "AIX_SP1")
                     {
                         using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                         {
+                            var db = wrapper.Context;
                             var order = new orders();
 
                             // ClOrdID и OrigClOrdID
@@ -1180,9 +1169,8 @@ GO
                     if (Program.EXCH_CODE == "ITS")
                     {
                         using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                         {
+                            var db = wrapper.Context;
                             var ord = new orders();
                             ord.msgNum = long.Parse(m.Header.GetString(34));
                             ord.fullMessage = m.ToJSON();
@@ -1242,9 +1230,8 @@ GO
                     else
                     {
                         using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                         {
+                            var db = wrapper.Context;
                             var order = new orders();
 
                             // ClOrdID и OrigClOrdID
@@ -1484,9 +1471,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         var order = new orders();
 
                         order.orderReferenceExchange = "MsgType = 3";
@@ -1517,9 +1503,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         var order = new orders();
                         //order.clientOrderID = m.ClOrdID.Value;
                         //order.clientOrderID = m.OrigClOrdID.Value;
@@ -1554,9 +1539,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         int clOrdId = 0;
 
                         try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -1594,9 +1578,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         int clOrdId = 0;
 
                         try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -1634,9 +1617,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
-                    {                        
+                    {
+                        var db = wrapper.Context;                        
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
                         order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
@@ -1668,9 +1650,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
                         order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
@@ -1898,7 +1879,6 @@ GO
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var db = wrapper.Context;
-            {
                 quotesSimple quote = new quotesSimple();
                 string symbol = null;
 
@@ -1999,7 +1979,6 @@ GO
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var db = wrapper.Context;
-            {
 
                 // Получаем символ инструмента
                 string symbol = null;
@@ -2100,9 +2079,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
                         order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
