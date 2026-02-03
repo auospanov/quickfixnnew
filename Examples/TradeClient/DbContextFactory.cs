@@ -21,7 +21,23 @@ namespace TradeClient
         public void Dispose()
         {
             // НЕ вызываем Dispose() на контексте - просто очищаем трекер изменений
-            _context.ChangeTracker.Clear();
+            // Обертываем в try-catch, чтобы избежать ошибок, если модель еще создается
+            try
+            {
+                if (_context != null)
+                {
+                    // Проверяем, что Database доступен (модель создана) перед использованием ChangeTracker
+                    var database = _context.Database;
+                    if (database != null)
+                    {
+                        _context.ChangeTracker.Clear();
+                    }
+                }
+            }
+            catch
+            {
+                // Игнорируем ошибки при очистке трекера (например, если модель еще создается)
+            }
         }
     }
 
