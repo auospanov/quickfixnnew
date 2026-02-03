@@ -152,17 +152,18 @@ GO
         private void TimerTick(object state)
         {
             if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1") {
-                using (var dataContext = DbContextFactory.Instance.CreateDbContext())
-                {
-                    List<quotesSimple> tempList = new List<quotesSimple>();
-                    lock (quotesSimples)
+                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                     {
-                        tempList = quotesSimples.ToList();
-                        quotesSimples = new ConcurrentBag<quotesSimple>();
-                    }
-                    tempList = tempList.OrderBy(s => int.Parse(s.msgNum)).ToList();
-                    dataContext.Context.quotesSimple.AddRange(tempList);
-                    dataContext.Context.SaveChanges();
+                        var dataContext = wrapper.Context;
+                        List<quotesSimple> tempList = new List<quotesSimple>();
+                        lock (quotesSimples)
+                        {
+                            tempList = quotesSimples.ToList();
+                            quotesSimples = new ConcurrentBag<quotesSimple>();
+                        }
+                        tempList = tempList.OrderBy(s => int.Parse(s.msgNum)).ToList();
+                        dataContext.quotesSimple.AddRange(tempList);
+                        dataContext.SaveChanges();
                 }
             }
             if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1") {
@@ -189,8 +190,8 @@ GO
                         tempList = tempList.OrderBy(s => s.msgNum).ToList();
                         if (tempList.Count() > 0)
                         {
-                            dataContext.Context.orders.AddRange(tempList);
-                            dataContext.Context.SaveChanges();
+                            dataContext.orders.AddRange(tempList);
+                            dataContext.SaveChanges();
                             
                             // Если запись прошла успешно, удаляем файл резервной копии
                             if (File.Exists(OrdersBackupFileName))
@@ -272,9 +273,8 @@ GO
 
                 if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1")
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                         var intrsView = db.instrsView.ToList();
 
                         var updatedInstrs = new List<instrsView>();
@@ -405,9 +405,8 @@ GO
             {
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                         db.heartbeat.Add(new heartbeat() { exchangeCode = Program.ADAPTER, lastTime = DateTime.Now, isReal = Program.ISREAL, isMM = 0 });
                         db.SaveChanges();
                     }
@@ -424,9 +423,8 @@ GO
                     if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                     try
                     {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                             int clOrdId = 0;
 
                             try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -463,9 +461,8 @@ GO
                     if (isDebug) Console.WriteLine("Received Reject");
                     try
                     {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                             int clOrdId = 0;
 
                             try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(rj.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -633,9 +630,8 @@ GO
                 clOrdId = int.Parse(message.GetString(11));
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                         var oneRec = db.NewOrders.Where(r=>r.Id==clOrdId).FirstOrDefault();
                         if(oneRec != null)
                         {
@@ -911,9 +907,8 @@ GO
         public void OnMessage(QuickFix.FIX44.Heartbeat m, SessionID s)
         {
             try { 
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                     db.heartbeat.Add(new heartbeat() {  exchangeCode = Program.ADAPTER, lastTime  =DateTime.Now, isReal = Program.ISREAL, isMM = 0});
                     db.SaveChanges();
                 }
@@ -929,9 +924,8 @@ GO
             { 
                 if (isDebug) Console.WriteLine("Received ExecutionReport");
                 try { 
-                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                     using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                         var order = new orders();
 
                     // ClOrdID и OrigClOrdID
@@ -1116,9 +1110,8 @@ GO
                 {
                     if (Program.EXCH_CODE == "AIX_SP1")
                     {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                             var order = new orders();
 
                             // ClOrdID и OrigClOrdID
@@ -1251,9 +1244,8 @@ GO
                 {
                     if (Program.EXCH_CODE == "ITS")
                     {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                             var ord = new orders();
                             ord.msgNum = long.Parse(m.Header.GetString(34));
                             ord.fullMessage = m.ToJSON();
@@ -1312,9 +1304,8 @@ GO
                         }
                     else
                     {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                             var order = new orders();
 
                             // ClOrdID и OrigClOrdID
@@ -1552,9 +1543,8 @@ GO
                 if (isDebug) Console.WriteLine("FIX44.Reject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                         var order = new orders();
 
                         order.orderReferenceExchange = "MsgType = 3";
@@ -1584,9 +1574,8 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                         var order = new orders();
                         //order.clientOrderID = m.ClOrdID.Value;
                         //order.clientOrderID = m.OrigClOrdID.Value;
@@ -1618,9 +1607,8 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                         int clOrdId = 0;
 
                         try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -1655,9 +1643,8 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                         int clOrdId = 0;
 
                         try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -1692,9 +1679,8 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
                         order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
@@ -1725,9 +1711,8 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
                         order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
@@ -1755,9 +1740,8 @@ GO
         {
             try
             {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                     tradeCapture tc = new tradeCapture();
                     tc.TradeReportID = m.TradeReportID.Value;
                     if (m.IsSetField(818)) tc.SecondaryTradeReportID = m.SecondaryTradeReportID.Value;
@@ -2011,9 +1995,8 @@ GO
         {
             if(isDebug) Console.WriteLine("Received MarketDataIncrementalRefresh");
             try { 
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                     quotesSimple quote = new quotesSimple();
                 string symbol = null;
 
@@ -2111,9 +2094,8 @@ GO
         {
             if(isDebug) Console.WriteLine("Received MarketDataSnapshotFullRefresh");
             try { 
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                     // Получаем символ инструмента
                 string symbol = null;
                 if (m.IsSetField(QuickFix.Fields.Symbol.TAG))
@@ -2212,9 +2194,8 @@ GO
                 if (isDebug) Console.WriteLine("Received OrderCancelReject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
                         order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
@@ -2719,9 +2700,8 @@ GO
             */
             try
             {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
                     //var rz1 = db.newOrders.Where(r => r.Processed_Status is null);
 
                     var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)

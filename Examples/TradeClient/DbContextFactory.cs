@@ -7,68 +7,41 @@ using System.Text.RegularExpressions;
 namespace TradeClient
 {
     /// <summary>
-    /// Обертка для DbContext из пула, которая управляет IServiceScope
+    /// Фабрика для создания экземпляров DbContext с использованием одного общего контекста
+    /// Использует один общий DbContext с синхронизацией для предотвращения множественных login/logout
     /// </summary>
-    public class PooledDbContextWrapper : IDisposable
+    public class DbContextFactory : IDisposable
     {
-        private readonly IServiceScope _scope;
-        public MyDbContext Context { get; }
-
-        public PooledDbContextWrapper(IServiceScope scope, MyDbContext context)
-        {
-            _scope = scope;
-            Context = context;
-        }
-
-        public void Dispose()
-        {
-            // Сначала освобождаем контекст (он вернется в пул)
-            // Затем освобождаем scope
-            _scope?.Dispose();
-        }
-    }
-
-    /// <summary>
-    /// Фабрика для создания экземпляров DbContext с использованием пула контекстов
-    /// Использует AddDbContextPool для эффективного управления контекстами и соединениями
-    /// </summary>
-    public class DbContextFactory
-    {
-        private static IServiceProvider? _serviceProvider;
+        private static MyDbContext? _sharedContext;
         private static readonly object _initLock = new object();
+        private static readonly object _contextLock = new object();
 
         /// <summary>
         /// Инициализация фабрики с строкой подключения
         /// </summary>
         public static void Initialize(string connectionString)
         {
-            if (_serviceProvider == null)
+            if (_sharedContext == null)
             {
                 lock (_initLock)
                 {
-                    if (_serviceProvider == null)
+                    if (_sharedContext == null)
                     {
                         // Очищаем строку подключения от неподдерживаемых параметров
                         var cleanedConnectionString = CleanConnectionString(connectionString);
 
-                        // Создаем ServiceCollection и настраиваем пул контекстов
-                        var services = new ServiceCollection();
-                        
-                        // AddDbContextPool - правильный способ для многопоточных приложений
-                        // Он создает пул контекстов и правильно управляет соединениями
-                        // При использовании через IServiceScope контексты берутся из пула и переиспользуются
-                        services.AddDbContextPool<MyDbContext>(options =>
+                        // Создаем один общий контекст, который будет переиспользоваться
+                        // Это предотвращает множественные login/logout события
+                        var optionsBuilder = new DbContextOptionsBuilder<MyDbContext>();
+                        optionsBuilder.UseSqlServer(cleanedConnectionString, sqlOptions =>
                         {
-                            options.UseSqlServer(cleanedConnectionString, sqlOptions =>
-                            {
-                                sqlOptions.EnableRetryOnFailure(
-                                    maxRetryCount: 3,
-                                    maxRetryDelay: TimeSpan.FromSeconds(30),
-                                    errorNumbersToAdd: null);
-                            });
-                        }, poolSize: 128); // Размер пула контекстов
+                            sqlOptions.EnableRetryOnFailure(
+                                maxRetryCount: 3,
+                                maxRetryDelay: TimeSpan.FromSeconds(30),
+                                errorNumbersToAdd: null);
+                        });
 
-                        _serviceProvider = services.BuildServiceProvider();
+                        _sharedContext = new MyDbContext(optionsBuilder.Options);
                     }
                 }
             }
@@ -106,7 +79,7 @@ namespace TradeClient
         {
             get
             {
-                if (_serviceProvider == null)
+                if (_sharedContext == null)
                 {
                     throw new InvalidOperationException("DbContextFactory не инициализирована. Вызовите Initialize() перед использованием.");
                 }
@@ -120,22 +93,25 @@ namespace TradeClient
         }
 
         /// <summary>
-        /// Создает новый экземпляр DbContext из пула через IServiceScope
-        /// Каждый вызов возвращает обертку с контекстом из пула, который можно безопасно использовать в одном потоке
-        /// После Dispose() контекст возвращается в пул, а соединение переиспользуется через ADO.NET connection pooling
+        /// Возвращает обертку для безопасного использования общего контекста
+        /// Использует lock для синхронизации доступа к контексту
         /// </summary>
-        public PooledDbContextWrapper CreateDbContext()
+        public DisposableDbContextWrapper CreateDbContext()
         {
-            if (_serviceProvider == null)
+            if (_sharedContext == null)
             {
                 throw new InvalidOperationException("DbContextFactory не инициализирована.");
             }
             
-            // Создаем scope для получения контекста из пула
-            // Это критически важно - без scope контексты не будут браться из пула AddDbContextPool
-            var scope = _serviceProvider.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<MyDbContext>();
-            return new PooledDbContextWrapper(scope, context);
+            return new DisposableDbContextWrapper(_sharedContext, _contextLock);
+        }
+
+        /// <summary>
+        /// Освобождает текущий контекст (очищает ChangeTracker)
+        /// </summary>
+        public void Dispose()
+        {
+            // Не освобождаем общий контекст, только очищаем трекер изменений
         }
 
         /// <summary>
@@ -143,22 +119,56 @@ namespace TradeClient
         /// </summary>
         public static void Dispose()
         {
-            if (_serviceProvider != null)
+            if (_sharedContext != null)
             {
                 lock (_initLock)
                 {
-                    if (_serviceProvider != null)
+                    if (_sharedContext != null)
                     {
                         try
                         {
-                            if (_serviceProvider is IDisposable disposable)
-                            {
-                                disposable.Dispose();
-                            }
+                            _sharedContext.Dispose();
                         }
                         catch { }
-                        _serviceProvider = null;
+                        _sharedContext = null;
                     }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Обертка для безопасного использования общего DbContext с синхронизацией
+    /// </summary>
+    public class DisposableDbContextWrapper : IDisposable
+    {
+        private readonly MyDbContext _context;
+        private readonly object _lock;
+        private bool _lockTaken = false;
+
+        public DisposableDbContextWrapper(MyDbContext context, object lockObject)
+        {
+            _context = context;
+            _lock = lockObject;
+            System.Threading.Monitor.Enter(_lock, ref _lockTaken);
+        }
+
+        public MyDbContext Context => _context;
+
+        public void Dispose()
+        {
+            try
+            {
+                // Очищаем трекер изменений перед освобождением блокировки
+                _context.ChangeTracker.Clear();
+            }
+            catch { }
+            finally
+            {
+                if (_lockTaken)
+                {
+                    System.Threading.Monitor.Exit(_lock);
+                    _lockTaken = false;
                 }
             }
         }
