@@ -18,6 +18,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading;
+using System.Threading.Tasks;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 using static System.Collections.Specialized.BitVector32;
 using ApplicationException = System.ApplicationException;
@@ -82,6 +83,12 @@ namespace TradeClient
         {
             //this.MyInitiator.Stop();
         }
+        static async Task ExitAfterDelayAsync(int milliseconds)
+        {
+            await Task.Delay(milliseconds);
+            Environment.Exit(0);
+        }
+
         public static bool isStop(String connectionString)
         {
             /*
@@ -317,8 +324,10 @@ GO
                 {
                     if (isDebug) Console.WriteLine($"Error during logout: {logoutErr.Message}");
                 }
-                
-                Environment.Exit(0);
+                _ = ExitAfterDelayAsync(5000);
+
+
+                //Environment.Exit(0);
             }
             //try
             //{
