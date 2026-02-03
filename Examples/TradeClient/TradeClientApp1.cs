@@ -110,14 +110,15 @@ GO
             {
                 // Используем общее подключение из DbContextFactory вместо создания нового
                 // Это предотвращает создание дополнительных подключений к БД
+                // ВАЖНО: Используем lock для синхронизации доступа к подключению
                 var sharedConn = DbContextFactory.GetSharedConnection();
                 if (sharedConn != null && sharedConn.State == System.Data.ConnectionState.Open)
                 {
-                    // Используем существующее подключение
-                    SqlConnection conn = sharedConn;
-
-                    // 1.  create a command object identifying the stored procedure
-                    SqlCommand cmd = new SqlCommand("dbo.fixDataUpdateNew", conn);
+                    // Используем существующее подключение с синхронизацией
+                    lock (sharedConn)
+                    {
+                        // 1.  create a command object identifying the stored procedure
+                        SqlCommand cmd = new SqlCommand("dbo.fixDataUpdateNew", sharedConn);
 
                     // 2. set the command object so it knows to execute a stored procedure
                     cmd.CommandType = CommandType.StoredProcedure;
@@ -138,10 +139,11 @@ GO
                     param = new SqlParameter("@messageType", "WORKING_STATUS");
                     param.Direction = ParameterDirection.Input;
                     cmd.Parameters.Add(param);
-                    // execute the command
-                    using (SqlDataReader rdr = cmd.ExecuteReader())
-                    {
-                        return cmd.Parameters["@resultString"].Value.ToString().ToUpper().Contains("STOP");
+                        // execute the command
+                        using (SqlDataReader rdr = cmd.ExecuteReader())
+                        {
+                            return cmd.Parameters["@resultString"].Value.ToString().ToUpper().Contains("STOP");
+                        }
                     }
                 }
                 else

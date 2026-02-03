@@ -35,6 +35,9 @@ namespace TradeClient
                         // Это критически важно для предотвращения множественных login/logout событий
                         _sharedConnection = new SqlConnection(cleanedConnectionString);
                         _sharedConnection.Open(); // Открываем подключение один раз при инициализации
+                        
+                        // Логируем успешное подключение для отслеживания
+                        Console.WriteLine($"[DbContextFactory] Подключение к БД открыто. ConnectionId: {_sharedConnection.ClientConnectionId}, State: {_sharedConnection.State}");
 
                         // Создаем один общий контекст, который использует это открытое подключение
                         var optionsBuilder = new DbContextOptionsBuilder<MyDbContext>();
@@ -85,6 +88,13 @@ namespace TradeClient
             else
             {
                 cleaned = cleaned.TrimEnd(';', ' ') + ";Pooling=false";
+            }
+            
+            // ВАЖНО: Включаем MARS (Multiple Active Result Sets) для поддержки нескольких активных запросов
+            // Это необходимо, так как одно подключение используется и для EF Core, и для прямых ADO.NET запросов
+            if (!cleaned.Contains("MultipleActiveResultSets", StringComparison.OrdinalIgnoreCase))
+            {
+                cleaned = cleaned.TrimEnd(';', ' ') + ";MultipleActiveResultSets=True";
             }
             
             // Удаляем параметры пула, которые могут создавать дополнительные подключения
@@ -169,13 +179,18 @@ namespace TradeClient
                 {
                     try
                     {
+                        Console.WriteLine($"[DbContextFactory] Закрытие подключения к БД. ConnectionId: {_sharedConnection.ClientConnectionId}, State: {_sharedConnection.State}");
                         if (_sharedConnection.State != System.Data.ConnectionState.Closed)
                         {
                             _sharedConnection.Close();
                         }
                         _sharedConnection.Dispose();
+                        Console.WriteLine("[DbContextFactory] Подключение к БД закрыто и освобождено");
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[DbContextFactory] Ошибка при закрытии подключения: {ex.Message}");
+                    }
                     _sharedConnection = null;
                 }
             }
