@@ -2245,19 +2245,19 @@ GO
 
         public void Run()
         {
-            
+
             //if (this.MyInitiator is null || !this.MyInitiator.IsLoggedOn)
             //    throw new ApplicationException("Somehow this.MyInitiator is not set");
             //int i = 0;
-            
+
             // Читаем интервал проверки новых заказов из конфига (в секундах)
-            int checkNewOrdersIntervalSeconds = 5; // Значение по умолчанию
+            double checkNewOrdersIntervalSeconds = 5; // Значение по умолчанию
             try
             {
-                string intervalStr = Program.GetValueByKey(Program.cfg, "checkNewOrdersIntervalSeconds");
+                string intervalStr = Program.checkNewOrdersIntervalMiliseconds;
                 if (!string.IsNullOrEmpty(intervalStr))
                 {
-                    checkNewOrdersIntervalSeconds = int.Parse(intervalStr);
+                    checkNewOrdersIntervalSeconds = double.Parse(intervalStr);
                 }
             }
             catch
@@ -2271,7 +2271,7 @@ GO
                     checkNewOrders();
                 
                 // Задержка между проверками (переводим секунды в миллисекунды)
-                Thread.Sleep(checkNewOrdersIntervalSeconds * 1000);
+                Thread.Sleep((int)(checkNewOrdersIntervalSeconds * 1000));
             }
             return;
             //if (this.MyInitiator is null)
