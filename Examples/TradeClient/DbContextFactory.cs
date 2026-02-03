@@ -1,50 +1,37 @@
 using Microsoft.EntityFrameworkCore;
 using System;
-using System.Collections.Concurrent;
-using System.Data.Common;
-using System.Data.SqlClient;
 using System.Text.RegularExpressions;
 
 namespace TradeClient
 {
     /// <summary>
-    /// Обертка для DbContext, которая не закрывает подключение при Dispose()
+    /// Обертка для DbContext, которая игнорирует Dispose() для использования в using
     /// </summary>
-    public class PooledDbContext : MyDbContext
+    public class DisposableDbContextWrapper : IDisposable
     {
-        private readonly SqlConnection _connection;
-        private bool _disposed = false;
+        private readonly MyDbContext _context;
 
-        public PooledDbContext(DbContextOptions<MyDbContext> options, SqlConnection connection) : base(options)
+        public DisposableDbContextWrapper(MyDbContext context)
         {
-            _connection = connection;
+            _context = context;
         }
 
-        public new void Dispose()
+        public MyDbContext Context => _context;
+
+        public void Dispose()
         {
-            if (!_disposed)
-            {
-                // Очищаем трекер изменений
-                ChangeTracker.Clear();
-                
-                // Возвращаем подключение в пул вместо закрытия
-                DbContextFactory.Instance.ReturnConnection(_connection);
-                
-                _disposed = true;
-            }
-            // НЕ вызываем base.Dispose() чтобы не закрывать подключение
+            // НЕ вызываем Dispose() на контексте - просто очищаем трекер изменений
+            _context.ChangeTracker.Clear();
         }
     }
 
     /// <summary>
-    /// Фабрика для создания экземпляров DbContext с пулом долгоживущих подключений
-    /// Использует пул подключений, которые не закрываются при Dispose() DbContext
+    /// Фабрика для создания экземпляров DbContext с единым долгоживущим подключением
+    /// Использует один DbContext, который не закрывается
     /// </summary>
     public class DbContextFactory
     {
-        private readonly string _connectionString;
-        private readonly ConcurrentQueue<SqlConnection> _connectionPool;
-        private readonly int _poolSize = 5; // Размер пула подключений
+        private readonly MyDbContext _sharedDbContext;
         private readonly object _lock = new object();
 
         private static DbContextFactory? _instance;
@@ -76,18 +63,20 @@ namespace TradeClient
             if (string.IsNullOrEmpty(connectionString))
                 throw new ArgumentNullException(nameof(connectionString));
             
-            // Убираем параметры, которые не поддерживаются System.Data.SqlClient
-            // "Trust Server Certificate" не поддерживается в старом SqlClient
-            _connectionString = CleanConnectionString(connectionString);
-            _connectionPool = new ConcurrentQueue<SqlConnection>();
+            // Очищаем строку подключения от неподдерживаемых параметров
+            var cleanedConnectionString = CleanConnectionString(connectionString);
 
-            // Создаем пул подключений и открываем их
-            for (int i = 0; i < _poolSize; i++)
+            // Создаем один долгоживущий DbContext с долгоживущим подключением
+            var optionsBuilder = new DbContextOptionsBuilder<MyDbContext>();
+            optionsBuilder.UseSqlServer(cleanedConnectionString, sqlOptions =>
             {
-                var connection = new SqlConnection(_connectionString);
-                connection.Open();
-                _connectionPool.Enqueue(connection);
-            }
+                sqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 3,
+                    maxRetryDelay: TimeSpan.FromSeconds(30),
+                    errorNumbersToAdd: null);
+            });
+
+            _sharedDbContext = new MyDbContext(optionsBuilder.Options);
         }
 
         /// <summary>
@@ -96,7 +85,7 @@ namespace TradeClient
         private string CleanConnectionString(string connectionString)
         {
             // System.Data.SqlClient не поддерживает "Trust Server Certificate" (с пробелами)
-            // Заменяем на "TrustServerCertificate" (без пробелов) или убираем полностью
+            // Заменяем на "TrustServerCertificate" (без пробелов)
             var cleaned = connectionString;
             
             // Заменяем "Trust Server Certificate" на "TrustServerCertificate"
@@ -133,51 +122,18 @@ namespace TradeClient
         }
 
         /// <summary>
-        /// Создает новый экземпляр DbContext с переиспользованием подключения из пула
-        /// Подключение НЕ закрывается при Dispose() DbContext, а возвращается в пул
+        /// Возвращает обертку для единого долгоживущего DbContext
+        /// Можно использовать в using - Dispose() не закроет подключение
         /// </summary>
-        public MyDbContext CreateDbContext()
+        public DisposableDbContextWrapper CreateDbContext()
         {
-            // Получаем подключение из пула
-            if (!_connectionPool.TryDequeue(out SqlConnection? connection))
-            {
-                // Если пул пуст, создаем новое подключение (но это не должно происходить часто)
-                connection = new SqlConnection(_connectionString);
-                connection.Open();
-            }
-
-            // Проверяем, что подключение открыто
-            if (connection.State != System.Data.ConnectionState.Open)
-            {
-                connection.Open();
-            }
-
-            // Создаем опции с переиспользованием подключения
-            var optionsBuilder = new DbContextOptionsBuilder<MyDbContext>();
-            optionsBuilder.UseSqlServer(connection, sqlOptions =>
-            {
-                sqlOptions.EnableRetryOnFailure(
-                    maxRetryCount: 3,
-                    maxRetryDelay: TimeSpan.FromSeconds(30),
-                    errorNumbersToAdd: null);
-            });
-
-            return new PooledDbContext(optionsBuilder.Options, connection);
+            // Возвращаем обертку вокруг одного и того же контекста для всех операций
+            // Подключение остается открытым на протяжении жизни приложения
+            return new DisposableDbContextWrapper(_sharedDbContext);
         }
 
         /// <summary>
-        /// Возвращает подключение в пул (вызывается из PooledDbContext при Dispose)
-        /// </summary>
-        internal void ReturnConnection(SqlConnection connection)
-        {
-            if (connection != null && connection.State == System.Data.ConnectionState.Open)
-            {
-                _connectionPool.Enqueue(connection);
-            }
-        }
-
-        /// <summary>
-        /// Освобождает ресурсы фабрики и закрывает все подключения
+        /// Освобождает ресурсы фабрики и закрывает подключение
         /// </summary>
         public static void Dispose()
         {
@@ -187,19 +143,12 @@ namespace TradeClient
                 {
                     if (_instance != null)
                     {
-                        // Закрываем все подключения в пуле
-                        while (_instance._connectionPool.TryDequeue(out SqlConnection? connection))
+                        try
                         {
-                            try
-                            {
-                                if (connection.State != System.Data.ConnectionState.Closed)
-                                {
-                                    connection.Close();
-                                }
-                                connection.Dispose();
-                            }
-                            catch { }
+                            // Закрываем долгоживущий контекст и его подключение
+                            _instance._sharedDbContext?.Dispose();
                         }
+                        catch { }
                         _instance = null;
                     }
                 }
