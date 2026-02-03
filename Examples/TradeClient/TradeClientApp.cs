@@ -1780,7 +1780,7 @@ GO
                 Console.WriteLine("Ошибка TradeCaptureReport - " + ex.Message);
             }
         }
-
+        
         private string GetSideName(char side)
 {
     return side switch
