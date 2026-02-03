@@ -641,9 +641,9 @@ GO
     //    if (isDebug) Console.WriteLine("Received ExecutionReport");
 
     //    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
     //    {
+    //        var db = wrapper.Context;
+    //        var order = new FixOrder(); // аналог Java Order
     //        var order = new FixOrder(); // аналог Java Order
 
     //        // ClOrdID и OrigClOrdID
@@ -1431,9 +1431,9 @@ GO
         //        try
         //        {
         //            using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
         //            {
+        //                var db = wrapper.Context;
+        //                var order = new orders();
         //                var order = new orders();
         //                order.clientOrderID = m.ClOrdID.Value;
         //                order.clientOrderID = m.OrigClOrdID.Value;
@@ -1682,7 +1682,6 @@ GO
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var db = wrapper.Context;
-                {
                     tradeCapture tc = new tradeCapture();
                     tc.TradeReportID = m.TradeReportID.Value;
                     if (m.IsSetField(818)) tc.SecondaryTradeReportID = m.SecondaryTradeReportID.Value;
@@ -2563,8 +2562,7 @@ GO
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var db = wrapper.Context;
-                {
-                //var rz1 = db.newOrders.Where(r => r.Processed_Status is null);
+                    //var rz1 = db.newOrders.Where(r => r.Processed_Status is null);
 
                 var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
                     && r.ExchangeCode == Program.EXCH_CODE && ((r.ExpirationDate == null && r.TimeInForce != "DAY") || r.ExpirationDate >= DateTime.UtcNow.Date) //берем только те, которые еще не просрочились 

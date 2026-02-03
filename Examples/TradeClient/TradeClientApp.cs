@@ -1690,9 +1690,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
                         order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
@@ -1723,7 +1722,6 @@ GO
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var db = wrapper.Context;
-                {
                     tradeCapture tc = new tradeCapture();
                     tc.TradeReportID = m.TradeReportID.Value;
                     if (m.IsSetField(818)) tc.SecondaryTradeReportID = m.SecondaryTradeReportID.Value;
@@ -1920,8 +1918,7 @@ GO
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var db = wrapper.Context;
-            {
-                quotesSimple quote = new quotesSimple();
+                    quotesSimple quote = new quotesSimple();
                 string symbol = null;
 
                 for (int i = 1; i <= m.NoMDEntries.getValue(); i++)
@@ -2021,9 +2018,7 @@ GO
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var db = wrapper.Context;
-            {
-
-                // Получаем символ инструмента
+                    // Получаем символ инструмента
                 string symbol = null;
                 if (m.IsSetField(QuickFix.Fields.Symbol.TAG))
                 {
@@ -2122,9 +2117,8 @@ GO
                 try
                 {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
                     {
+                        var db = wrapper.Context;
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
                         order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
@@ -2617,7 +2611,6 @@ GO
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var db = wrapper.Context;
-                {
                     //var rz1 = db.newOrders.Where(r => r.Processed_Status is null);
 
                     var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
