@@ -1,4 +1,4 @@
-п»їusing Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using QuickFix;
 using QuickFix.Fields;
@@ -30,7 +30,7 @@ namespace TradeClient
         public static string connection = "";// "Data Source=WIN-DUS0A072PNF\\SQLEXPRESS;Initial Catalog=drivers_beSQL_new;Persist Security Info=True;User ID=platformAdm;Password=Admin$12345";
         public static List<instrsView> instrs = new List<instrsView>();
         private Timer _timer;
-        private readonly int _timerBatchCollectMilliseconds = 10_000; // РЅР°РїСЂРёРјРµСЂ, 10 СЃРµРєСѓРЅРґ
+        private readonly int _timerBatchCollectMilliseconds = 10_000; // например, 10 секунд
         private readonly int portionSendOrder = 100;
         //private readonly int _timerIntervalMilliseconds = int.Parse(Program.GetValueByKey(Program.cfg, "timerIntervalMilliseconds"));
         public TradeClientApp1(SessionSettings settings)
@@ -85,19 +85,19 @@ namespace TradeClient
         {
             /*
              create PROCEDURE [dbo].[fixDataUpdateNew] 
---СѓРЅРёРІРµСЂСЃР°Р»СЊРЅР°СЏ РїСЂРѕС†РµРґСѓСЂР°, РёСЃРїРѕР»СЊР·СѓРµРјР°СЏ РґР»СЏ:
- -- 1) РѕР±СЂР°Р±РѕС‚РєРё РґР°РЅРЅС‹С… (СЃРїРёСЃРѕРє РёРЅСЃС‚СЂСѓРјРµРЅС‚РѕРІ, РјР°СЂРєРµС‚-РґР°С‚Р° Рё СЃС‚Р°РєР°РЅС‹), РїРѕР»СѓС‡РµРЅРЅС‹С… С‡РµСЂРµР· FIX-РїСЂРѕС‚РѕРєРѕР» Рё РІ РІС‹С…РѕРґРЅРѕРј РїР°СЂР°РјРµС‚СЂРµ РІС‹РґР°РµС‚СЃСЏ РёС‚РѕРіРѕРІРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ РёРЅСЃС‚СЂСѓРјРµРЅС‚Р° РёР»Рё СЃС‚Р°РєР°РЅР°
- -- 2) РІС‹РґР°С‡Рё РґР°РЅРЅС‹С… РїРѕ Р·Р°РїСЂРѕСЃСѓ (РЅР°РїСЂРёРјРµСЂ, РєРѕС‚РёСЂРѕРІРєРё РґР»СЏ РєР»РёРµРЅС‚Р°)
- @messageText   nvarchar(MAX),  --С‚РµРєСЃС‚ Р·Р°РїСЂРѕСЃР° РІ С„РѕСЂРјР°С‚Рµ json
- @resCode    varchar(10) output, --РєРѕРґ РІРѕР·РІСЂР°С‚Р°
- @resultString  nvarchar(MAX) output, --СЂРµР·СѓР»СЊС‚Р°С‚ РІ С„РѕСЂРјР°С‚Рµ json
+--универсальная процедура, используемая для:
+ -- 1) обработки данных (список инструментов, маркет-дата и стаканы), полученных через FIX-протокол и в выходном параметре выдается итоговое состояние инструмента или стакана
+ -- 2) выдачи данных по запросу (например, котировки для клиента)
+ @messageText   nvarchar(MAX),  --текст запроса в формате json
+ @resCode    varchar(10) output, --код возврата
+ @resultString  nvarchar(MAX) output, --результат в формате json
  @messageType   varchar(50) = 'Normal'
 AS
 BEGIN
  set @resCode = '0'
  set @resultString = 'OK'
  if @messageType = 'WORKING_STATUS'
-  --РµСЃР»Рё СЌС‚Рѕ Р·Р°РїСЂРѕСЃ СЃРѕСЃС‚РѕСЏРЅРёСЏ Р·Р°РїСѓСЃРєР°/РѕСЃС‚Р°РЅРѕРІРєРё РѕР±СЂР°Р±РѕС‚С‡РёРєРѕРІ FIX/Р‘СЂРёРґР¶ Рё РїСЂ.
+  --если это запрос состояния запуска/остановки обработчиков FIX/Бридж и пр.
   begin  
    set @resCode = '0'
    set @resultString = 'OK'
@@ -204,9 +204,7 @@ GO
 
                 if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1")
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
+                    using (var db = DbContextFactory.Instance.CreateDbContext()) {
                         var intrsView = db.instrsView.ToList();
 
                         var updatedInstrs = new List<instrsView>();
@@ -230,7 +228,7 @@ GO
                                 }
                                 catch (Exception ex)
                                 {
-                                    if (isDebug) Console.WriteLine($"РћС€РёР±РєР° РїСЂРё РїРѕРґРїРёСЃРєРµ РЅР° РёРЅСЃС‚СЂСѓРјРµРЅС‚ {instrView.symbol}: {ex.Message}");
+                                    if (isDebug) Console.WriteLine($"Ошибка при подписке на инструмент {instrView.symbol}: {ex.Message}");
                                 }
                             }
                             else
@@ -249,11 +247,11 @@ GO
                                 try
                                 {
                                     SendMarketDataUnsubscribe(_session.SessionID, oldInstr);
-                                    if (isDebug) Console.WriteLine($"РћС‚РїРёСЃРєР° РѕС‚ РёРЅСЃС‚СЂСѓРјРµРЅС‚Р°: {oldInstr.symbol}");
+                                    if (isDebug) Console.WriteLine($"Отписка от инструмента: {oldInstr.symbol}");
                                 }
                                 catch (Exception ex)
                                 {
-                                    if (isDebug) Console.WriteLine($"РћС€РёР±РєР° РїСЂРё РѕС‚РїРёСЃРєРµ РѕС‚ РёРЅСЃС‚СЂСѓРјРµРЅС‚Р° {oldInstr.symbol}: {ex.Message}");
+                                    if (isDebug) Console.WriteLine($"Ошибка при отписке от инструмента {oldInstr.symbol}: {ex.Message}");
                                 }
                             }
                         }
@@ -271,7 +269,7 @@ GO
         public void OnLogon(SessionID sessionId)
         {
 
-            //Р·Р°РїСЂРѕСЃ СЃРїСЂР°РІРѕС‡РЅРёРєР° РёРЅСЃС‚СЂСѓРјРµРЅС‚РѕРІ
+            //запрос справочника инструментов
             if (Program.GetValueByKey(Program.cfg, "IsInstrRequest") == "1")
                 try
                 {
@@ -281,7 +279,7 @@ GO
                 {
                 }
 
-            //Р·Р°РїСЂРѕСЃ СЃС‚СѓС‚СѓСЃР° С‚РѕСЂРіРѕРІ
+            //запрос стутуса торгов
             if (Program.GetValueByKey(Program.cfg, "IsTradeStatusRequest") == "1")
                 try
                 {
@@ -291,19 +289,19 @@ GO
                 {
                 }
 
-            //Р·Р°РїСЂРѕСЃ РєРѕС‚РёСЂРѕРІРѕРє
+            //запрос котировок
 
             try
             {
-                // Р•СЃР»Рё С‚Р°Р№РјРµСЂ СѓР¶Рµ Р±С‹Р» СЃРѕР·РґР°РЅ вЂ” РѕСЃС‚Р°РЅР°РІР»РёРІР°РµРј РµРіРѕ
+                // Если таймер уже был создан — останавливаем его
                 _timer?.Dispose();
 
-                // РЎРѕР·РґР°РµРј Рё Р·Р°РїСѓСЃРєР°РµРј РЅРѕРІС‹Р№ С‚Р°Р№РјРµСЂ
+                // Создаем и запускаем новый таймер
                 _timer = new Timer(
-                    callback: TimerTick, // РјРµС‚РѕРґ РєРѕС‚РѕСЂС‹Р№ Р±СѓРґРµС‚ РІС‹Р·С‹РІР°С‚СЊСЃСЏ
+                    callback: TimerTick, // метод который будет вызываться
                     state: null,
-                    dueTime: 0,                // Р—Р°РїСѓСЃРєР°С‚СЊ СЃСЂР°Р·Сѓ
-                    period: _timerBatchCollectMilliseconds // РџРµСЂРёРѕРґРёС‡РЅРѕСЃС‚СЊ
+                    dueTime: 0,                // Запускать сразу
+                    period: _timerBatchCollectMilliseconds // Периодичность
                 );
                 instrs = new List<instrsView>();
             }
@@ -319,7 +317,7 @@ GO
             if (isDebug) Console.WriteLine("Logout - " + sessionId);
             try
             {
-                // РљРѕРіРґР° РѕС‚РєР»СЋС‡РёР»РёСЃСЊ вЂ” РѕСЃС‚Р°РЅРѕРІРёС‚СЊ С‚Р°Р№РјРµСЂ
+                // Когда отключились — остановить таймер
                 _timer?.Dispose();
                 _timer = null;
                 instrs = new List<instrsView>();
@@ -337,9 +335,7 @@ GO
             {
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
+                    using (var db = DbContextFactory.Instance.CreateDbContext()) {
                         db.heartbeat.Add(new heartbeat() { exchangeCode = Program.ADAPTER, lastTime = DateTime.Now, isReal = Program.ISREAL, isMM = 0 });
                         db.SaveChanges();
                     }
@@ -356,9 +352,7 @@ GO
                     if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                     try
                     {
-                        using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                        {
-                            var db = wrapper.Context;
+                        using (var db = DbContextFactory.Instance.CreateDbContext()) {
                             int clOrdId = 0;
 
                             try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -395,9 +389,7 @@ GO
                     if (isDebug) Console.WriteLine("Received Reject");
                     try
                     {
-                        using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                        {
-                            var db = wrapper.Context;
+                        using (var db = DbContextFactory.Instance.CreateDbContext()) {
                             int clOrdId = 0;
 
                             try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(rj.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -430,19 +422,19 @@ GO
             }
             else if (message is QuickFix.FIX44.Logon logon)
             {
-                //РµСЃР»Рё СЃРµРіРѕРґРЅСЏ РјРµРЅСЏРµС‚СЃСЏ РїР°СЂРѕР»СЊ
+                //если сегодня меняется пароль
                 if (Program.isChangePassword)
                 {
                     string rz58 = string.Empty;
                     try { rz58 = logon.GetString(1409); }
                     catch { }
-                    //РµСЃР»Рё РЅР°Р№РґРµРЅ С‚РµРі 58, С‚Рѕ РїСЂРѕРІРµСЂРєР° РЅР° РєРѕРґ "209" - РїР°СЂРѕР»СЊ РёР·РјРµРЅРµРЅ СѓСЃРїРµС€РЅРѕ
+                    //если найден тег 58, то проверка на код "209" - пароль изменен успешно
                     if (rz58 == "0")
                     {
                         _sessionPasswords[sessionId] = Program.newPassword;
-                        //Р·Р°РїРёСЃСЊ РІ РєРѕРЅС„РёРіСѓСЂР°С†РёРѕРЅРЅС‹Р№ С„Р°Р№Р» РЅРѕРІРѕРіРѕ РїР°СЂРѕР»СЏ
+                        //запись в конфигурационный файл нового пароля
                         Program.recNewPassword();
-                        // РёРЅРёС†РёРёСЂСѓРµРј logout, С‡С‚РѕР±С‹ РјРѕР¶РЅРѕ Р±С‹Р»Рѕ РїРµСЂРµРїРѕРґРєР»СЋС‡РёС‚СЊСЃСЏ СЃ РЅРѕРІС‹Рј РїР°СЂРѕР»РµРј
+                        // инициируем logout, чтобы можно было переподключиться с новым паролем
                         var session = Session.LookupSession(sessionId);
                         if (session != null)
                         {
@@ -498,12 +490,12 @@ GO
 
                     Program.newPassword = newPassword;
                 }
-                //РІСЂРµРјРµРЅРЅРѕ РґРѕР±Р°РІРёР» 07.11.2025
+                //временно добавил 07.11.2025
                 if (sessionConfig.Has("ResetSeqNumFlag"))
                 {
                     bool val = sessionConfig.GetString("ResetSeqNumFlag") == "Y" ? true : false;
                     message.SetField(new ResetSeqNumFlag(val));
-                    // logon.Set(new ResetSeqNumFlag(true)); // РЎР±СЂРѕСЃРёС‚СЊ СЃС‡С‘С‚С‡РёРє СЃРѕРѕР±С‰РµРЅРёР№
+                    // logon.Set(new ResetSeqNumFlag(true)); // Сбросить счётчик сообщений
 
                 }
                 if (sessionConfig.Has("HeartBtInt"))
@@ -555,9 +547,7 @@ GO
                 clOrdId = int.Parse(message.GetString(11));
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
+                    using (var db = DbContextFactory.Instance.CreateDbContext()) {
                         var oneRec = db.NewOrders.Where(r=>r.Id==clOrdId).FirstOrDefault();
                         if(oneRec != null)
                         {
@@ -645,10 +635,10 @@ GO
     //    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
     //    {
     //        var db = wrapper.Context;
-    //        var order = new FixOrder(); // Р°РЅР°Р»РѕРі Java Order
-    //        var order = new FixOrder(); // Р°РЅР°Р»РѕРі Java Order
+    //        var order = new FixOrder(); // аналог Java Order
+    //        var order = new FixOrder(); // аналог Java Order
 
-    //        // ClOrdID Рё OrigClOrdID
+    //        // ClOrdID и OrigClOrdID
     //        if (m.ExecType.getValue() == QuickFix.Fields.ExecType.CANCELED || m.ExecType.getValue() == QuickFix.Fields.ExecType.PENDING_CANCEL)
     //        {
     //            if (m.IsSetField(11)) order.ClOrdID = m.GetString(11);
@@ -660,7 +650,7 @@ GO
     //        }
     //        else
     //        {
-    //            if (m.IsSetField(11)) order.ClOrdID = m.GetString(11); // Р°РЅР°Р»РѕРі paramExecutionReport.getRef()
+    //            if (m.IsSetField(11)) order.ClOrdID = m.GetString(11); // аналог paramExecutionReport.getRef()
     //        }
 
     //        // ExecID (Serial)
@@ -768,8 +758,8 @@ GO
     //        }
 
     //        // WhoRemoved / RemovedTime
-    //        if (m.IsSetField(10500)) order.WhoRemoved = m.GetString(10500); // РєР°СЃС‚РѕРјРЅС‹Р№ С‚РµРі
-    //        if (m.IsSetField(10501)) order.WhenRemoved = m.GetUtcTimeStamp(10501); // РєР°СЃС‚РѕРјРЅС‹Р№ С‚РµРі
+    //        if (m.IsSetField(10500)) order.WhoRemoved = m.GetString(10500); // кастомный тег
+    //        if (m.IsSetField(10501)) order.WhenRemoved = m.GetUtcTimeStamp(10501); // кастомный тег
 
     //        // OrderRestrictions (MM Order flag)
     //        if (m.IsSetField(529))
@@ -816,24 +806,22 @@ GO
     //        }
     //        catch { }
 
-    //        // РџСЂРѕС‡РёРµ РїРѕР»СЏ
+    //        // Прочие поля
     //        order.TypeQuery = "update";
     //        order.ObjectType = "fix_order";
     //        order.ExchCode = FIXClient.FIX_EXCHANGECODE;
     //        order.IsReal = FIXClient.FIX_ISREAL;
 
-    //        // Р”РѕР±Р°РІРёС‚СЊ РІ Р‘Р” РёР»Рё РІСЂРµРјРµРЅРЅС‹Р№ СЃРїРёСЃРѕРє
+    //        // Добавить в БД или временный список
     //        // db.FixOrders.Add(order);
     //        // db.SaveChanges();
-    //        FixOrdersList.Add(order); // РµСЃР»Рё РІСЂРµРјРµРЅРЅР°СЏ РєРѕР»Р»РµРєС†РёСЏ
+    //        FixOrdersList.Add(order); // если временная коллекция
     //    }
     //}
         public void OnMessage(QuickFix.FIX44.Heartbeat m, SessionID s)
         {
             try { 
-             using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-             {
-                 var db = wrapper.Context;
+             using (var db = DbContextFactory.Instance.CreateDbContext()) {
                  db.heartbeat.Add(new heartbeat() {  exchangeCode = Program.ADAPTER, lastTime  =DateTime.Now, isReal = Program.ISREAL, isMM = 0});
                  db.SaveChanges();
              }
@@ -849,12 +837,10 @@ GO
             { 
                 if (isDebug) Console.WriteLine("Received ExecutionReport");
                 try { 
-                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                     {
-                         var db = wrapper.Context;
+                     using (var db = DbContextFactory.Instance.CreateDbContext()) {
                          var order = new orders();
 
-                    // ClOrdID Рё OrigClOrdID
+                    // ClOrdID и OrigClOrdID
                     if (m.ExecType.getValue() == QuickFix.Fields.ExecType.CANCELED || m.ExecType.getValue() == QuickFix.Fields.ExecType.PENDING_CANCEL)
                     {
                         if (m.IsSetField(11)) order.clientOrderID = m.GetField(new QuickFix.Fields.ClOrdID()).getValue();
@@ -1019,7 +1005,7 @@ GO
                     order.exchangeCode = Program.EXCH_CODE;
                     order.isReal = Program.ISREAL;
                     order.msgNum = int.Parse(m.Header.GetString(34));
-                    OrdersCache.Add(order); // Р·Р°РјРµРЅРёС‚Рµ РЅР° РЅСѓР¶РЅСѓСЋ РІР°Рј СЃС‚СЂСѓРєС‚СѓСЂСѓ С…СЂР°РЅРµРЅРёСЏ (РЅР°РїСЂРёРјРµСЂ, Add to List/Queue/Db)
+                    OrdersCache.Add(order); // замените на нужную вам структуру хранения (например, Add to List/Queue/Db)
                 }
                 }
                 catch(Exception e) {
@@ -1036,12 +1022,10 @@ GO
                 {
                     if (Program.EXCH_CODE == "AIX_SP1")
                     {
-                        using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                        {
-                            var db = wrapper.Context;
+                        using (var db = DbContextFactory.Instance.CreateDbContext()) {
                             var order = new orders();
 
-                            // ClOrdID Рё OrigClOrdID
+                            // ClOrdID и OrigClOrdID
                             if (m.ExecType.getValue() == QuickFix.Fields.ExecType.CANCELED || m.ExecType.getValue() == QuickFix.Fields.ExecType.PENDING_CANCEL)
                             {
                                 if (m.IsSetField(11)) order.clientOrderID = m.GetField(new QuickFix.Fields.ClOrdID()).getValue();
@@ -1151,7 +1135,7 @@ GO
                             order.isReal = Program.ISREAL;
                             order.msgNum = int.Parse(m.Header.GetString(34));
                             order.fullMessage = m.ToJSON();
-                            OrdersCache.Add(order); // Р·Р°РјРµРЅРёС‚Рµ РЅР° РЅСѓР¶РЅСѓСЋ РІР°Рј СЃС‚СЂСѓРєС‚СѓСЂСѓ С…СЂР°РЅРµРЅРёСЏ (РЅР°РїСЂРёРјРµСЂ, Add to List/Queue/Db)
+                            OrdersCache.Add(order); // замените на нужную вам структуру хранения (например, Add to List/Queue/Db)
                         }
                     }
                 }
@@ -1171,9 +1155,7 @@ GO
                 {
                     if (Program.EXCH_CODE == "ITS")
                     {
-                        using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                        {
-                            var db = wrapper.Context;
+                        using (var db = DbContextFactory.Instance.CreateDbContext()) {
                             var ord = new orders();
                             ord.msgNum = long.Parse(m.Header.GetString(34));
                             ord.fullMessage = m.ToJSON();
@@ -1214,7 +1196,7 @@ GO
                                 for (int i = 1; i <= groupCount; i++)
                                 {
                                     var partyGroup = new QuickFix.FIX50SP2.ExecutionReport.NoPartyIDsGroup();
-                                    m.GetGroup(i, partyGroup);   // <-- Р’РђР–РќРћ!
+                                    m.GetGroup(i, partyGroup);   // <-- ВАЖНО!
 
                                     string partyId = partyGroup.GetString(QuickFix.Fields.Tags.PartyID);
                                     ord.partyId = partyId;
@@ -1232,12 +1214,10 @@ GO
                     }
                     else
                     {
-                        using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                        {
-                            var db = wrapper.Context;
+                        using (var db = DbContextFactory.Instance.CreateDbContext()) {
                             var order = new orders();
 
-                            // ClOrdID Рё OrigClOrdID
+                            // ClOrdID и OrigClOrdID
                             if (m.ExecType.getValue() == QuickFix.Fields.ExecType.CANCELED || m.ExecType.getValue() == QuickFix.Fields.ExecType.PENDING_CANCEL)
                             {
                                 if (m.IsSetField(11)) order.clientOrderID = m.GetField(new QuickFix.Fields.ClOrdID()).getValue();
@@ -1414,7 +1394,7 @@ GO
                             order.isReal = Program.ISREAL;
                             order.msgNum = int.Parse(m.Header.GetString(34));
                             order.fullMessage = m.ToJSON();
-                            OrdersCache.Add(order); // Р·Р°РјРµРЅРёС‚Рµ РЅР° РЅСѓР¶РЅСѓСЋ РІР°Рј СЃС‚СЂСѓРєС‚СѓСЂСѓ С…СЂР°РЅРµРЅРёСЏ (РЅР°РїСЂРёРјРµСЂ, Add to List/Queue/Db)
+                            OrdersCache.Add(order); // замените на нужную вам структуру хранения (например, Add to List/Queue/Db)
                         }
                     }
                 }
@@ -1472,9 +1452,7 @@ GO
                 if (isDebug) Console.WriteLine("FIX44.Reject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
+                    using (var db = DbContextFactory.Instance.CreateDbContext()) {
                         var order = new orders();
 
                         order.orderReferenceExchange = "MsgType = 3";
@@ -1504,9 +1482,7 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
+                    using (var db = DbContextFactory.Instance.CreateDbContext()) {
                         var order = new orders();
                         //order.clientOrderID = m.ClOrdID.Value;
                         //order.clientOrderID = m.OrigClOrdID.Value;
@@ -1540,9 +1516,7 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
+                    using (var db = DbContextFactory.Instance.CreateDbContext()) {
                         int clOrdId = 0;
 
                         try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -1579,9 +1553,7 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
+                    using (var db = DbContextFactory.Instance.CreateDbContext()) {
                         int clOrdId = 0;
 
                         try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
@@ -1618,9 +1590,7 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;                        
+                    using (var db = DbContextFactory.Instance.CreateDbContext()) {                        
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
                         order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
@@ -1651,9 +1621,7 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
+                    using (var db = DbContextFactory.Instance.CreateDbContext()) {
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
                         order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
@@ -1681,9 +1649,7 @@ GO
         {
             try
             {
-                using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
+                using (var db = DbContextFactory.Instance.CreateDbContext()) {
                     tradeCapture tc = new tradeCapture();
                     tc.TradeReportID = m.TradeReportID.Value;
                     if (m.IsSetField(818)) tc.SecondaryTradeReportID = m.SecondaryTradeReportID.Value;
@@ -1696,20 +1662,20 @@ GO
                     tc.TransactTime=m.TransactTime.Value.ToString();
                     if (m.IsSetField(64)) tc.SettlDate = m.SettlDate.Value;
                     if (m.IsSetField(5459)) tc.OptionSettlType=m.GetString(5459);
-                    //РµСЃР»Рё РµСЃС‚СЊ РіСЂСѓРїРїР° NoSides
+                    //если есть группа NoSides
                     if(m.IsSetNoSides())
                     {
                         int sidesCount = m.NoSides.Value; //m.GetInt(552);
                         for (int i = 0; i < sidesCount; i++)
                         {
-                            // РџРѕР»СѓС‡Р°РµРј РіСЂСѓРїРїСѓ РїРѕ РёРЅРґРµРєСЃСѓ
+                            // Получаем группу по индексу
                             QuickFix.FIX44.TradeCaptureReport.NoSidesGroup sideGroup =
                                 new QuickFix.FIX44.TradeCaptureReport.NoSidesGroup();
                             m.GetGroup(i, sideGroup);
-                            // Р§РёС‚Р°РµРј РїРѕР»СЏ РІРЅСѓС‚СЂРё РіСЂСѓРїРїС‹
+                            // Читаем поля внутри группы
                             if (sideGroup.IsSetSide())
                             {
-                                // Side (54) вЂ” char
+                                // Side (54) — char
                                 var sideField = new Side();
                                 sideGroup.GetField(sideField);
                                 tc.Side = sideField.Value.ToString();
@@ -1770,7 +1736,7 @@ GO
             }
             catch(Exception ex)
             {
-                Console.WriteLine("РћС€РёР±РєР° TradeCaptureReport - " + ex.Message);
+                Console.WriteLine("Ошибка TradeCaptureReport - " + ex.Message);
             }
         }
 
@@ -1877,9 +1843,7 @@ GO
         {
             if(isDebug) Console.WriteLine("Received MarketDataIncrementalRefresh");
             try { 
-                using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
+                using (var db = DbContextFactory.Instance.CreateDbContext()) {
                 quotesSimple quote = new quotesSimple();
                 string symbol = null;
 
@@ -1892,7 +1856,7 @@ GO
                     decimal? price = null;
                     decimal? size = null;
 
-                    // РџРѕР»СѓС‡Р°РµРј С†РµРЅСѓ
+                    // Получаем цену
                     if (group.IsSetField(QuickFix.Fields.MDEntryPx.TAG))
                     {
                         var mdEntryPx = new QuickFix.Fields.MDEntryPx();
@@ -1900,7 +1864,7 @@ GO
                         price = mdEntryPx.getValue();
                     }
 
-                    // РџРѕР»СѓС‡Р°РµРј РєРѕР»РёС‡РµСЃС‚РІРѕ
+                    // Получаем количество
                     if (group.IsSetField(QuickFix.Fields.MDEntrySize.TAG))
                     {
                         var mdEntrySize = new QuickFix.Fields.MDEntrySize();
@@ -1908,7 +1872,7 @@ GO
                         size = mdEntrySize.getValue();
                     }
 
-                    // РџРѕР»СѓС‡Р°РµРј СЃРёРјРІРѕР»
+                    // Получаем символ
                     if (group.IsSetField(QuickFix.Fields.Symbol.TAG))
                     {
                         var symbolField = new QuickFix.Fields.Symbol();
@@ -1917,7 +1881,7 @@ GO
                     }
 
                     if (!price.HasValue)
-                        continue; // Р•СЃР»Рё РЅРµС‚ С†РµРЅС‹, РїСЂРѕРїСѓСЃРєР°РµРј Р·Р°РїРёСЃСЊ
+                        continue; // Если нет цены, пропускаем запись
 
                     switch (mdEntryType)
                     {
@@ -1944,7 +1908,7 @@ GO
                         //    quote.closePrice = price.Value;
                         //    break;
 
-                        //case "B": // Trade volume РѕС‚РґРµР»СЊРЅРѕ
+                        //case "B": // Trade volume отдельно
                         //    quote.totalVolume = size ?? 0;
                         //    break;
 
@@ -1977,11 +1941,9 @@ GO
         {
             if(isDebug) Console.WriteLine("Received MarketDataSnapshotFullRefresh");
             try { 
-                using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
+                using (var db = DbContextFactory.Instance.CreateDbContext()) {
 
-                // РџРѕР»СѓС‡Р°РµРј СЃРёРјРІРѕР» РёРЅСЃС‚СЂСѓРјРµРЅС‚Р°
+                // Получаем символ инструмента
                 string symbol = null;
                 if (m.IsSetField(QuickFix.Fields.Symbol.TAG))
                 {
@@ -2079,9 +2041,7 @@ GO
                 if (isDebug) Console.WriteLine("Received OrderCancelReject");
                 try
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
+                    using (var db = DbContextFactory.Instance.CreateDbContext()) {
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
                         order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
@@ -2253,28 +2213,28 @@ GO
         private static Random random = new Random();
         private static string NextRef()
         {
-            byte[] buffer = new byte[8]; // 8 Р±Р°Р№С‚ = 64 Р±РёС‚Р°
+            byte[] buffer = new byte[8]; // 8 байт = 64 бита
             random.NextBytes(buffer);
             long longValue = BitConverter.ToInt64(buffer, 0);
-            return Math.Abs(longValue).ToString(); // СѓР±СЂР°С‚СЊ Р·РЅР°Рє (Р°РЅР°Р»РѕРі Long.MAX_VALUE)
+            return Math.Abs(longValue).ToString(); // убрать знак (аналог Long.MAX_VALUE)
         }
         public void SubscribeInstrument(string symbol, string exanteId, SessionID sessionID)
         {
             var marketDataRequest = new QuickFix.FIX44.MarketDataRequest();
 
-            marketDataRequest.Set(new MDReqID(NextRef().ToString())); // 262 - РЈРЅРёРєР°Р»СЊРЅС‹Р№ ID Р·Р°РїСЂРѕСЃР°
+            marketDataRequest.Set(new MDReqID(NextRef().ToString())); // 262 - Уникальный ID запроса
             marketDataRequest.Set(new SubscriptionRequestType(SubscriptionRequestType.SNAPSHOT_PLUS_UPDATES)); // 263 - 1 = Snapshot + Updates
             marketDataRequest.Set(new MarketDepth(0)); // 264 - 0 = Top of book
             marketDataRequest.Set(new MDUpdateType(0)); // 265 - 0 = Full Refresh
 
-            // РЎРЅР°С‡Р°Р»Р° РґРѕР±Р°РІРёС‚СЊ РіСЂСѓРїРїСѓ РёРЅСЃС‚СЂСѓРјРµРЅС‚РѕРІ (NoRelatedSym 146=1)
+            // Сначала добавить группу инструментов (NoRelatedSym 146=1)
             var symbolGroup = new Group(146, 55);
             symbolGroup.SetField(new Symbol(exanteId));           // 55 - AAPL.NASDAQ
             symbolGroup.SetField(new SecurityID(exanteId));        // 48 - AAPL.NASDAQ
-            symbolGroup.SetField(new SecurityIDSource("111"));     // 22 - Р’РЅРµС€РЅРёР№ РєРѕРґ
+            symbolGroup.SetField(new SecurityIDSource("111"));     // 22 - Внешний код
             marketDataRequest.AddGroup(symbolGroup);
 
-            // РўРµРїРµСЂСЊ РіСЂСѓРїРїС‹ С‚РёРїРѕРІ С†РµРЅ (NoMDEntryTypes 267=6)
+            // Теперь группы типов цен (NoMDEntryTypes 267=6)
             var entryTypes = new List<char>
     {
         MDEntryType.BID,            // 269=0
@@ -2292,9 +2252,9 @@ GO
                 marketDataRequest.AddGroup(entryTypeGroup);
             }
 
-            if(isDebug) Console.WriteLine($"[Subscribe] РџРѕРґРїРёСЃРєР° РЅР° РёРЅСЃС‚СЂСѓРјРµРЅС‚: {symbol} ({exanteId})");
+            if(isDebug) Console.WriteLine($"[Subscribe] Подписка на инструмент: {symbol} ({exanteId})");
 
-            // РћС‚РїСЂР°РІР»СЏРµРј
+            // Отправляем
             Session.SendToTarget(marketDataRequest, sessionID);
         }
         private string SendMarketDataRequest(SessionID sessionID, instrsView instr)
@@ -2303,13 +2263,13 @@ GO
             var request = new QuickFix.FIX44.MarketDataRequest(
                 new MDReqID(requestId),
                 new SubscriptionRequestType(SubscriptionRequestType.SNAPSHOT_PLUS_UPDATES),
-                new MarketDepth(1) // Р“Р»СѓР±РёРЅР° СЃС‚Р°РєР°РЅР°
+                new MarketDepth(1) // Глубина стакана
             );
 
             request.Set(new MarketDepth(0)); // 264 = 0
             request.Set(new MDUpdateType(0)); // 265 = Full Refresh
 
-            // РўРёРїС‹ Р·Р°РїСЂР°С€РёРІР°РµРјС‹С… РґР°РЅРЅС‹С… (Bid + Ask)
+            // Типы запрашиваемых данных (Bid + Ask)
             var entryTypesGroup = new QuickFix.FIX44.MarketDataRequest.NoMDEntryTypesGroup();
             entryTypesGroup.Set(new MDEntryType(MDEntryType.BID));  // Bid
             request.AddGroup(entryTypesGroup);
@@ -2323,14 +2283,14 @@ GO
             request.AddGroup(entryTypesGroup);
 
 
-            // РЎРІСЏР·Р°РЅРЅС‹Рµ РёРЅСЃС‚СЂСѓРјРµРЅС‚С‹ (Symbols)
-            var symbolGroup = new Group(146, 55, new int[] { 55, 48, 22 }); // РїРѕСЂСЏРґРѕРє РїРѕР»РµР№
+            // Связанные инструменты (Symbols)
+            var symbolGroup = new Group(146, 55, new int[] { 55, 48, 22 }); // порядок полей
             symbolGroup.SetField(new Symbol(instr.symbol));        // 55
             symbolGroup.SetField(new SecurityID(instr.codeMubasher)); // 48
             symbolGroup.SetField(new SecurityIDSource("111"));      // 22
             request.AddGroup(symbolGroup);
 
-            // РћС‚РїСЂР°РІР»СЏРµРј Р·Р°РїСЂРѕСЃ
+            // Отправляем запрос
             if (Session.SendToTarget(request, sessionID))
             {
                 if(isDebug) Console.WriteLine($"MarketDataRequest sent successfully for instrument: {instr.symbol}");
@@ -2347,16 +2307,16 @@ GO
         {
             string requestId = Guid.NewGuid().ToString();
             var request = new QuickFix.FIX44.MarketDataRequest(
-                new MDReqID(requestId), // РЈРЅРёРєР°Р»СЊРЅС‹Р№ ID Р·Р°РїСЂРѕСЃР°
+                new MDReqID(requestId), // Уникальный ID запроса
                 new SubscriptionRequestType(SubscriptionRequestType.SNAPSHOT_PLUS_UPDATES),
-                new MarketDepth(1) // Р“Р»СѓР±РёРЅР° СЃС‚Р°РєР°РЅР° (1 вЂ” С‚РѕР»СЊРєРѕ Р»СѓС‡С€РёР№ Bid/Ask)
+                new MarketDepth(1) // Глубина стакана (1 — только лучший Bid/Ask)
             );
-            request.Set(new MDReqID(NextRef().ToString())); // 262 - РЈРЅРёРєР°Р»СЊРЅС‹Р№ ID Р·Р°РїСЂРѕСЃР°
+            request.Set(new MDReqID(NextRef().ToString())); // 262 - Уникальный ID запроса
             request.Set(new SubscriptionRequestType(SubscriptionRequestType.SNAPSHOT_PLUS_UPDATES)); // 263 - 1 = Snapshot + Updates
             request.Set(new MarketDepth(0)); // 264 - 0 = Top of book
             request.Set(new MDUpdateType(0)); // 265 - 0 = Full Refresh
 
-            // РўРёРїС‹ Р·Р°РїСЂР°С€РёРІР°РµРјС‹С… РґР°РЅРЅС‹С… (Bid/Ask)
+            // Типы запрашиваемых данных (Bid/Ask)
             var entryTypesGroup = new QuickFix.FIX44.MarketDataRequest.NoMDEntryTypesGroup();
             entryTypesGroup.Set(new MDEntryType(MDEntryType.BID));  // Bid
             request.AddGroup(entryTypesGroup);
@@ -2365,7 +2325,7 @@ GO
             entryTypesGroup.Set(new MDEntryType(MDEntryType.OFFER)); // Ask
             request.AddGroup(entryTypesGroup);
             //8=FIX.4.49=18635=V34=249=MOY4338_FEED_UAT52=20250417-16:01:46.07356=EXANTE_FEED_UAT262=1726263=1264=0265=0146=155=AAPL.NASDAQ48=AAPL.NASDAQ22=111267=6269=0269=1269=4269=2269=B269=510=034
-            // РРЅСЃС‚СЂСѓРјРµРЅС‚С‹ (РЅР°РїСЂРёРјРµСЂ EUR/USD РёР»Рё BTC/USD)
+            // Инструменты (например EUR/USD или BTC/USD)
             var instruments = new[] { instr.symbol };
 
             //foreach (var symbol in instruments)
@@ -2377,15 +2337,15 @@ GO
             //var symbolGroup2 = new Group(146, 55);
             //symbolGroup2.SetField(new Symbol("AAPL.NASDAQ"));           // 55 - AAPL.NASDAQ
             //symbolGroup2.SetField(new SecurityID("AAPL.NASDAQ"));        // 48 - AAPL.NASDAQ
-            //symbolGroup2.SetField(new SecurityIDSource("111"));     // 22 - Р’РЅРµС€РЅРёР№ РєРѕРґ
+            //symbolGroup2.SetField(new SecurityIDSource("111"));     // 22 - Внешний код
             //request.AddGroup(symbolGroup2);
 
-            var symbolGroup = new Group(146, 55, new int[] { 55, 48, 22 }); // <<< РџР РђР’РР›Р¬РќР«Р™ РџРћР РЇР”РћРљ
+            var symbolGroup = new Group(146, 55, new int[] { 55, 48, 22 }); // <<< ПРАВИЛЬНЫЙ ПОРЯДОК
             symbolGroup.SetField(new QuickFix.Fields.Symbol(instr.symbol));        // 55
             symbolGroup.SetField(new QuickFix.Fields.SecurityID(instr.codeMubasher));     // 48
             symbolGroup.SetField(new QuickFix.Fields.SecurityIDSource("111"));  // 22
             request.AddGroup(symbolGroup);
-            // РћС‚РїСЂР°РІР»СЏРµРј Р·Р°РїСЂРѕСЃ
+            // Отправляем запрос
             if (Session.SendToTarget(request, sessionID))
             {
                 if(isDebug) Console.WriteLine($"MarketDataRequest sent successfully for instruments: {string.Join(", ", instruments)}");
@@ -2398,16 +2358,16 @@ GO
         }
         private void SendMarketDataUnsubscribe(SessionID sessionID, instrsView instr)
         {
-            // РЎРѕР·РґР°РµРј Р·Р°РїСЂРѕСЃ РЅР° РјР°СЂРєРµС‚-РґР°С‚Сѓ (MarketDataRequest) РґР»СЏ РѕС‚РјРµРЅС‹ РїРѕРґРїРёСЃРєРё
+            // Создаем запрос на маркет-дату (MarketDataRequest) для отмены подписки
             var request = new QuickFix.FIX44.MarketDataRequest(
-                new MDReqID(instr.requestId), // вќ— РСЃРїРѕР»СЊР·СѓРµРј СЃС‚Р°СЂС‹Р№ (СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёР№) RequestId РґР»СЏ РѕС‚РїРёСЃРєРё
+                new MDReqID(instr.requestId), // ? Используем старый (существующий) RequestId для отписки
                 new SubscriptionRequestType(SubscriptionRequestType.DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST), // 263 = 2 (Disable previous snapshot + cancel updates)
-                new MarketDepth(0) // 264 - РіР»СѓР±РёРЅР° РЅРµ РЅСѓР¶РЅР° РїСЂРё РѕС‚РјРµРЅРµ
+                new MarketDepth(0) // 264 - глубина не нужна при отмене
             );
 
-            request.Set(new MDUpdateType(0)); // 265 - Full Refresh (РѕР±С‹С‡РЅРѕ 0)
+            request.Set(new MDUpdateType(0)); // 265 - Full Refresh (обычно 0)
 
-            // Р—Р°РїСЂР°С€РёРІР°РµРј С‚РёРїС‹ РґР°РЅРЅС‹С…, РѕС‚ РєРѕС‚РѕСЂС‹С… РЅСѓР¶РЅРѕ РѕС‚РїРёСЃР°С‚СЊСЃСЏ (РєР°Рє РІ РїСЂРёРјРµСЂРµ: BID, OFFER, TRADE)
+            // Запрашиваем типы данных, от которых нужно отписаться (как в примере: BID, OFFER, TRADE)
             var entryTypes = new[]
             {
         MDEntryType.BID,
@@ -2422,14 +2382,14 @@ GO
                 request.AddGroup(entryTypesGroup);
             }
 
-            // РЈРєР°Р·С‹РІР°РµРј РёРЅСЃС‚СЂСѓРјРµРЅС‚
+            // Указываем инструмент
             var symbolGroup = new Group(146, 55, new int[] { 55, 48, 22 });
             symbolGroup.SetField(new QuickFix.Fields.Symbol(instr.symbol));             // 55
             symbolGroup.SetField(new QuickFix.Fields.SecurityID(instr.codeMubasher));    // 48
             symbolGroup.SetField(new QuickFix.Fields.SecurityIDSource("111"));           // 22
             request.AddGroup(symbolGroup);
 
-            // РћС‚РїСЂР°РІР»СЏРµРј Р·Р°РїСЂРѕСЃ РЅР° РѕС‚РїРёСЃРєСѓ
+            // Отправляем запрос на отписку
             if (Session.SendToTarget(request, sessionID))
             {
                 if(isDebug) Console.WriteLine($"MarketDataRequest unsubscribe sent successfully for instrument: {instr.symbol}");
@@ -2458,7 +2418,7 @@ GO
                     else if (ord.Direction == "CANCEL_SELL") side = new Side(Side.SELL);
                     else
                     {
-                        //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ РїРѕСЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                        //здесь нужно поставить логирование
                         return;
                     }
                     QuickFix.FIX50SP2.OrderCancelRequest req = new QuickFix.FIX50SP2.OrderCancelRequest();
@@ -2505,7 +2465,7 @@ GO
                     else if (ord.Direction == "CANCEL_SELL") side = new Side(Side.SELL);
                     else
                     {
-                        //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ РїРѕСЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                        //здесь нужно поставить логирование
                         return;
                     }
                     QuickFix.FIX50SP1.OrderCancelRequest req = new QuickFix.FIX50SP1.OrderCancelRequest();
@@ -2533,7 +2493,7 @@ GO
                     else if (ord.Direction == "CANCEL_SELL") side = new Side(Side.SELL);
                     else
                     {
-                        //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ РїРѕСЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                        //здесь нужно поставить логирование
                         return;
                     }
                     QuickFix.FIX44.OrderCancelRequest orderCancelRequest = new QuickFix.FIX44.OrderCancelRequest(
@@ -2552,22 +2512,20 @@ GO
             }
             catch 
             {
-                //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ РїРѕСЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                //здесь нужно поставить логирование
             }
 
         }
-        //РїСЂРѕРІРµСЂРєР° РЅР°Р»РёС‡РёСЏ РЅРѕРІС‹С… РЅРµРѕР±СЂР°Р±РѕС‚Р°РЅРЅС‹С… РїСЂРёРєР°Р·РѕРІ
+        //проверка наличия новых необработанных приказов
         public void checkNewOrders()
         {
             try
             {
-                using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
+                using (var db = DbContextFactory.Instance.CreateDbContext()) {
                     //var rz1 = db.newOrders.Where(r => r.Processed_Status is null);
 
                 var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
-                    && r.ExchangeCode == Program.EXCH_CODE && ((r.ExpirationDate == null && r.TimeInForce != "DAY") || r.ExpirationDate >= DateTime.UtcNow.Date) //Р±РµСЂРµРј С‚РѕР»СЊРєРѕ С‚Рµ, РєРѕС‚РѕСЂС‹Рµ РµС‰Рµ РЅРµ РїСЂРѕСЃСЂРѕС‡РёР»РёСЃСЊ 
+                    && r.ExchangeCode == Program.EXCH_CODE && ((r.ExpirationDate == null && r.TimeInForce != "DAY") || r.ExpirationDate >= DateTime.UtcNow.Date) //берем только те, которые еще не просрочились 
                     ).OrderBy(r=>r.Id).Take(portionSendOrder).ToList();
                 
                 DateTime startTime = DateTime.Now;
@@ -2581,7 +2539,7 @@ GO
                     else if (r.Type.ToUpper() == "LIMIT") ordType = new OrdType(OrdType.LIMIT);
                     else
                     {
-                        //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ РїРѕСЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                        //здесь нужно поставить логирование
                         continue;
                     }
                     char s = ' ';
@@ -2595,7 +2553,7 @@ GO
                     }
                     else
                     {
-                        //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ СЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                        //здесь нужно ставить логирование
                         continue;
                     }
                     if (Program.EXCH_CODE == "AIX")
@@ -2621,7 +2579,7 @@ GO
                         else if (r.TimeInForce.ToUpper() == "FILL_OR_KILL") s = TimeInForce.FILL_OR_KILL;
                         else
                         {
-                            //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ СЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                            //здесь нужно ставить логирование
                             continue;
                         }
                         ord1.Set(new TimeInForce(s));
@@ -2668,7 +2626,7 @@ GO
                         else if (r.TimeInForce.ToUpper() == "FILL_OR_KILL") s = TimeInForce.FILL_OR_KILL;
                         else
                         {
-                            //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ СЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                            //здесь нужно ставить логирование
                             continue;
                         }
                         ord1.Set(new TimeInForce(s));
@@ -2725,7 +2683,7 @@ GO
                         else if (r.TimeInForce.ToUpper() == "FILL_OR_KILL") s = TimeInForce.FILL_OR_KILL;
                         else
                         {
-                            //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ СЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                            //здесь нужно ставить логирование
                             continue;
                         }
                         ord1.Set(new TimeInForce(s));
@@ -2791,7 +2749,7 @@ GO
                         /*
                         if(!ok)
                         {
-                            Console.WriteLine("РћС€РёР±РєР° РїСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёСЏ РІ int. Quatity = " + r.Quantity.Value.ToString());
+                            Console.WriteLine("Ошибка преобразования в int. Quatity = " + r.Quantity.Value.ToString());
                             return;
                         }
                         */
@@ -2809,7 +2767,7 @@ GO
                         else if (r.TimeInForce.ToUpper() == "FILL_OR_KILL") s = TimeInForce.FILL_OR_KILL;
                         else
                         {
-                            //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ СЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                            //здесь нужно ставить логирование
                             continue;
                         }
                         ord1.Set(new TimeInForce(s));
@@ -2844,10 +2802,10 @@ GO
                         ord1.SetField(new TransactTime(DateTime.Now));
                         if (string.IsNullOrEmpty(r.Ticker))
                         {
-                            Console.WriteLine("РќРµ СѓРєР°Р·Р°РЅ С‚РёРєРµСЂ РІ С‚Р°Р±Р»РёС†Рµ newOrders. Id Р·Р°РїРёСЃРё = " + r.Id);
+                            Console.WriteLine("Не указан тикер в таблице newOrders. Id записи = " + r.Id);
                             continue;
                         }
-                        ord1.SetField(new ExDestination(r.exDestination));      //РїСѓР» Р»РёРєРІРёРґРЅРѕСЃС‚Рё                  
+                        ord1.SetField(new ExDestination(r.exDestination));      //пул ликвидности                  
                         ord1.SetField(new SecurityID(r.Ticker));
 
                         ord1.SetField(new Side(s));
@@ -2861,8 +2819,8 @@ GO
                         else if (r.TimeInForce.ToUpper() == "FILL_OR_KILL") s = TimeInForce.FILL_OR_KILL;
                         else
                         {
-                            Console.WriteLine("РќРµРІРµСЂРЅРѕ СѓРєР°Р·Р°РЅРѕ РїРѕР»Рµ TimeInForce . Id Р·Р°РїРёСЃРё = " + r.Id);
-                            //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ СЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                            Console.WriteLine("Неверно указано поле TimeInForce . Id записи = " + r.Id);
+                            //здесь нужно ставить логирование
                             continue;
                         }
                         ord1.Set(new TimeInForce(s));
@@ -2870,8 +2828,8 @@ GO
                         {
                             if(r.Price==null)
                             {
-                                Console.WriteLine("РќРµ Р·Р°РґР°РЅРѕ Р·РЅР°С‡РµРЅРёРµ Price . Id Р·Р°РїРёСЃРё = " + r.Id);
-                                //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ СЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                                Console.WriteLine("Не задано значение Price . Id записи = " + r.Id);
+                                //здесь нужно ставить логирование
                                 continue;
                             }
                             ord1.Set(new Price(r.Price.Value));
@@ -2884,8 +2842,8 @@ GO
 
                         if (r.Quantity == null)
                         {
-                            Console.WriteLine("РќРµ Р·Р°РґР°РЅРѕ Р·РЅР°С‡РµРЅРёРµ Quantity. Id Р·Р°РїРёСЃРё = " + r.Id);
-                            //Р·РґРµСЃСЊ РЅСѓР¶РЅРѕ СЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                            Console.WriteLine("Не задано значение Quantity. Id записи = " + r.Id);
+                            //здесь нужно ставить логирование
                             continue;
                         }
                         ord1.SetField(new OrderQty((int)r.Quantity));
@@ -2899,17 +2857,17 @@ GO
                         ord1.SetField(new Account(r.Acc));
 
 
-                        //Р”Р»СЏ РїРѕРґР°С‡Рё Р·Р°СЏРІРѕРє СЃ РєР»РёРµРЅС‚СЃРєРѕРіРѕ РўРљРЎРђ РїРѕР»СЏ Р±СѓРґСѓС‚ Р·Р°РїРѕР»РЅРµРЅС‹ СЃР»РµРґСѓСЋС‰РёРј РѕР±СЂР°Р·РѕРј
-                        //1, Account(РўРљРЎ): STDICLIENT
+                        //Для подачи заявок с клиентского ТКСА поля будут заполнены следующим образом
+                        //1, Account(ТКС): STDICLIENT
                         //448, PartyId: 387
                         //447, PartyIdSource: D
                         //452, PartyRole: 1
-                        //448, PartyId: Р»СЋР±РѕР№ РёР· РїРµСЂРµС‡РёСЃР»РµРЅРЅС‹С… РєР»РёРµРЅС‚СЃРєРёС… РєРѕРґРѕРІ: STDIc10 \ STDIc12 \ STDIc13
+                        //448, PartyId: любой из перечисленных клиентских кодов: STDIc10 \ STDIc12 \ STDIc13
                         //447, PartyIdSource: D
                         //452, PartyRole: 3
 
-                        //Р”Р»СЏ РїРѕРґР°С‡Рё Р·Р°СЏРІРѕРє СЃ СЃРѕР±СЃС‚РІРµРЅРЅРѕРіРѕ РўРљРЎРђ РїРѕР»СЏ Р±СѓРґСѓС‚ Р·Р°РїРѕР»РЅРµРЅС‹ СЃР»РµРґСѓСЋС‰РёРј РѕР±СЂР°Р·РѕРј
-                        //1, Account(РўРљРЎ): STDIOWN
+                        //Для подачи заявок с собственного ТКСА поля будут заполнены следующим образом
+                        //1, Account(ТКС): STDIOWN
                         //448, PartyId: 387
                         //447, PartyIdSource: D
                         //452, PartyRole: 1
@@ -2918,8 +2876,8 @@ GO
                         //452, PartyRole: 3
                         
                         ord1.SetField(new NoPartyIDs(3));
-                        //РїРµСЂРІС‹Р№ СЌР»РµРјРµРЅС‚ СЃС‚Р°РІРёРј С…Р°СЂРґРєРѕРґРѕРј РІ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё РѕС‚ РЅРѕРјРµСЂР° СЃС‡РµС‚Р°
-                        //РІС‚РѕСЂРѕР№ СЌР»РµРјРµРЅС‚ Р±РµСЂРµРј РёР· С‚Р°Р±Р»РёС†С‹                        
+                        //первый элемент ставим хардкодом в зависимости от номера счета
+                        //второй элемент берем из таблицы                        
 
                         var partyIdGroup = new QuickFix.FIX50SP2.NewOrderSingle.NoPartyIDsGroup();
                         if (r.Acc == "STDICLIENT")
@@ -2966,7 +2924,7 @@ GO
             }
             catch(Exception err) 
             {
-                //Р·РґРµСЃСЊ РЅР°РґРѕ РїРѕСЃС‚Р°РІРёС‚СЊ Р»РѕРіРёСЂРѕРІР°РЅРёРµ
+                //здесь надо поставить логирование
                 Console.WriteLine(err.ToString());
             }
 
@@ -2975,8 +2933,8 @@ GO
 
         public static string GenerateNewPassword(int length = 8)
         {
-            if (length < 3) // РјРёРЅРёРјСѓРј 3 СЃРёРјРІРѕР»Р°, С‡С‚РѕР±С‹ РІРјРµСЃС‚РёС‚СЊ РІСЃРµ РєР°С‚РµРіРѕСЂРёРё
-                throw new ArgumentException("Р”Р»РёРЅР° РїР°СЂРѕР»СЏ РґРѕР»Р¶РЅР° Р±С‹С‚СЊ РЅРµ РјРµРЅСЊС€Рµ 3.", nameof(length));
+            if (length < 3) // минимум 3 символа, чтобы вместить все категории
+                throw new ArgumentException("Длина пароля должна быть не меньше 3.", nameof(length));
 
             const string upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             const string lower = "abcdefghijklmnopqrstuvwxyz";
@@ -2986,7 +2944,7 @@ GO
             char[] result = new char[length];
             RandomNumberGenerator rng = RandomNumberGenerator.Create();
 
-            // Р¤СѓРЅРєС†РёСЏ РґР»СЏ РІС‹Р±РѕСЂР° СЃР»СѓС‡Р°Р№РЅРѕРіРѕ СЃРёРјРІРѕР»Р° РёР· СЃС‚СЂРѕРєРё
+            // Функция для выбора случайного символа из строки
             char GetRandomChar(string chars)
             {
                 byte[] buffer = new byte[1];
@@ -2994,18 +2952,18 @@ GO
                 return chars[buffer[0] % chars.Length];
             }
 
-            // РћР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ СЃРёРјРІРѕР»С‹
+            // Обязательные символы
             result[0] = GetRandomChar(upper);
             result[1] = GetRandomChar(lower);
             result[2] = GetRandomChar(digits);
 
-            // РћСЃС‚Р°Р»СЊРЅС‹Рµ СЃРёРјРІРѕР»С‹
+            // Остальные символы
             for (int i = 3; i < length; i++)
             {
                 result[i] = GetRandomChar(allChars);
             }
 
-            // РџРµСЂРµРјРµС€РёРІР°РµРј РјР°СЃСЃРёРІ (Fisher-Yates shuffle)
+            // Перемешиваем массив (Fisher-Yates shuffle)
             for (int i = result.Length - 1; i > 0; i--)
             {
                 byte[] buffer = new byte[1];
