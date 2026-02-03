@@ -2251,14 +2251,10 @@ GO
             //int i = 0;
 
             // Читаем интервал проверки новых заказов из конфига (в секундах)
-            double checkNewOrdersIntervalSeconds = 5; // Значение по умолчанию
+            int checkNewOrdersIntervalMiliseconds = 500; // Значение по умолчанию
             try
             {
-                string intervalStr = Program.checkNewOrdersIntervalMiliseconds;
-                if (!string.IsNullOrEmpty(intervalStr))
-                {
-                    checkNewOrdersIntervalSeconds = double.Parse(intervalStr);
-                }
+                checkNewOrdersIntervalMiliseconds = int.Parse(Program.checkNewOrdersIntervalMiliseconds);
             }
             catch
             {
@@ -2270,8 +2266,8 @@ GO
                 if (this.MyInitiator is not null && this.MyInitiator.IsLoggedOn)
                     checkNewOrders();
                 
-                // Задержка между проверками (переводим секунды в миллисекунды)
-                Thread.Sleep((int)(checkNewOrdersIntervalSeconds * 1000));
+                // Задержка между проверками 
+                Thread.Sleep(checkNewOrdersIntervalMiliseconds);
             }
             return;
             //if (this.MyInitiator is null)

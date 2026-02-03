@@ -28,6 +28,7 @@ namespace TradeClient
         public static string tmpPassword = string.Empty;
         public static string newPassword = string.Empty;
         public static bool isMustStartedAfterChangePassword = false;
+        public static string checkNewOrdersIntervalMiliseconds = string.Empty;
         [STAThread]
         static void Main(string[] args)
         {
@@ -46,7 +47,7 @@ namespace TradeClient
                 DailyLogger.Log($"[TaskScheduler] Unobserved task exception: {args.Exception.Message}");
             };
             #if DEBUG
-                ADAPTER = "kase"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kaseDropCopy kaseCurr kaseCurrDropCopy kaseSpot kaseSpotDropCopy its aix_SP1
+                ADAPTER = "kaseSpot"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kase kaseDropCopy kaseCurr kaseCurrDropCopy kaseSpot kaseSpotDropCopy its aix_SP1
 #endif
 
             try {ADAPTER = args[0]; }catch(Exception ex){}
@@ -163,6 +164,7 @@ namespace TradeClient
                     DbContextFactory.Dispose();
                     Environment.Exit(0);
                 }
+                checkNewOrdersIntervalMiliseconds = Program.GetValueByKey(Program.cfg, "checkNewOrdersIntervalMiliseconds");
                 urlService = GetValueByKey(cfg,"urlService");  
                 urlServiceAuthorization = GetValueByKey(cfg,"urlServiceAuthorization");
                 string changePasswordDay = GetValueByKey(cfg, "changePasswordDay");
