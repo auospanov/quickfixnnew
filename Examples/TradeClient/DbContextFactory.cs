@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Data.SqlClient;
+using System.Text.RegularExpressions;
 
 namespace TradeClient
 {
@@ -75,7 +76,9 @@ namespace TradeClient
             if (string.IsNullOrEmpty(connectionString))
                 throw new ArgumentNullException(nameof(connectionString));
             
-            _connectionString = connectionString;
+            // Убираем параметры, которые не поддерживаются System.Data.SqlClient
+            // "Trust Server Certificate" не поддерживается в старом SqlClient
+            _connectionString = CleanConnectionString(connectionString);
             _connectionPool = new ConcurrentQueue<SqlConnection>();
 
             // Создаем пул подключений и открываем их
@@ -85,6 +88,31 @@ namespace TradeClient
                 connection.Open();
                 _connectionPool.Enqueue(connection);
             }
+        }
+
+        /// <summary>
+        /// Очищает строку подключения от параметров, не поддерживаемых System.Data.SqlClient
+        /// </summary>
+        private string CleanConnectionString(string connectionString)
+        {
+            // System.Data.SqlClient не поддерживает "Trust Server Certificate" (с пробелами)
+            // Заменяем на "TrustServerCertificate" (без пробелов) или убираем полностью
+            var cleaned = connectionString;
+            
+            // Заменяем "Trust Server Certificate" на "TrustServerCertificate"
+            if (cleaned.Contains("Trust Server Certificate", StringComparison.OrdinalIgnoreCase))
+            {
+                cleaned = Regex.Replace(
+                    cleaned, 
+                    @"Trust\s+Server\s+Certificate\s*=\s*([^;]+)", 
+                    "TrustServerCertificate=$1", 
+                    RegexOptions.IgnoreCase);
+            }
+            
+            // Убираем двойные точки с запятой и лишние пробелы
+            cleaned = cleaned.Replace(";;", ";").TrimEnd(';', ' ');
+
+            return cleaned;
         }
 
         /// <summary>
