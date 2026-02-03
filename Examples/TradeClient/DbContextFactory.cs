@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Data.SqlClient;
 using System.Text.RegularExpressions;
 using System.Threading;
 
@@ -59,6 +60,7 @@ namespace TradeClient
     public class DbContextFactory
     {
         private readonly MyDbContext _sharedDbContext;
+        private readonly SqlConnection _sharedConnection; // Явное управление соединением
         private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1); // Только один поток может использовать контекст одновременно
 
         private static DbContextFactory? _instance;
@@ -93,9 +95,14 @@ namespace TradeClient
             // Очищаем строку подключения от неподдерживаемых параметров
             var cleanedConnectionString = CleanConnectionString(connectionString);
 
-            // Создаем один долгоживущий DbContext с долгоживущим подключением
+            // Создаем одно долгоживущее соединение и открываем его один раз
+            _sharedConnection = new SqlConnection(cleanedConnectionString);
+            _sharedConnection.Open(); // Открываем соединение один раз при инициализации
+
+            // Создаем DbContext с уже открытым соединением
+            // Это гарантирует, что соединение не будет закрываться при Dispose()
             var optionsBuilder = new DbContextOptionsBuilder<MyDbContext>();
-            optionsBuilder.UseSqlServer(cleanedConnectionString, sqlOptions =>
+            optionsBuilder.UseSqlServer(_sharedConnection, sqlOptions =>
             {
                 sqlOptions.EnableRetryOnFailure(
                     maxRetryCount: 3,
@@ -178,8 +185,11 @@ namespace TradeClient
                             _instance._semaphore.Wait();
                             try
                             {
-                                // Закрываем долгоживущий контекст и его подключение
+                                // Закрываем долгоживущий контекст
                                 _instance._sharedDbContext?.Dispose();
+                                // Закрываем долгоживущее соединение
+                                _instance._sharedConnection?.Close();
+                                _instance._sharedConnection?.Dispose();
                             }
                             finally
                             {
