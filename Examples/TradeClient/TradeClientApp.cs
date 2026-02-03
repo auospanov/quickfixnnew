@@ -360,6 +360,7 @@ GO
                         db.heartbeat.Add(new heartbeat() { exchangeCode = Program.ADAPTER, lastTime = DateTime.Now, isReal = Program.ISREAL, isMM = 0 });
                         db.SaveChanges();
                     }
+                }
                 catch (Exception e)
                 {
                     DailyLogger.Log($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(message));
@@ -593,6 +594,7 @@ GO
                             db.SaveChanges();
                         }                        
                     }
+                }
                 catch (Exception e)
                 {
                     OrderSender.writeLog("Exception oneRec = " + e.Message);
@@ -670,8 +672,8 @@ GO
     //    if (isDebug) Console.WriteLine("Received ExecutionReport");
 
     //    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                {
-                    var db = wrapper.Context;
+    //    {
+    //        var db = wrapper.Context;
     //    {
     //        var order = new FixOrder(); // аналог Java Order
 
@@ -1514,6 +1516,7 @@ GO
                         db.orders.Add(order);
                         db.SaveChanges();
                     }
+                }
                 catch (Exception e)
                 {
                     DailyLogger.Log($"[FIX44.Reject] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
