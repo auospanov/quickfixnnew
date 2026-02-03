@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Data.SqlClient;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Threading;
 
@@ -14,21 +15,60 @@ namespace TradeClient
     {
         private readonly MyDbContext _context;
         private readonly SemaphoreSlim _semaphore;
+        private bool _semaphoreAcquired = false;
+        private const int SemaphoreTimeoutMs = 30000; // 30 секунд таймаут
 
         public DisposableDbContextWrapper(MyDbContext context, SemaphoreSlim semaphore)
         {
             _context = context;
             _semaphore = semaphore;
-            // Захватываем семафор при создании обертки
-            _semaphore.Wait();
+            
+            // Логируем попытку захвата семафора
+            var threadId = Thread.CurrentThread.ManagedThreadId;
+            var stackTrace = new StackTrace(1, true);
+            Debug.WriteLine($"[DbContext] Поток {threadId} пытается захватить семафор. Текущее количество: {semaphore.CurrentCount}");
+            
+            var startTime = DateTime.Now;
+            // Захватываем семафор при создании обертки с таймаутом
+            _semaphoreAcquired = _semaphore.Wait(SemaphoreTimeoutMs);
+            var elapsed = (DateTime.Now - startTime).TotalMilliseconds;
+            
+            if (!_semaphoreAcquired)
+            {
+                Debug.WriteLine($"[DbContext] Поток {threadId} НЕ смог захватить семафор за {elapsed} мс. StackTrace: {stackTrace}");
+                throw new TimeoutException($"Не удалось получить доступ к DbContext в течение {SemaphoreTimeoutMs} мс. Возможно, другой поток удерживает блокировку слишком долго. Поток: {threadId}");
+            }
+            
+            Debug.WriteLine($"[DbContext] Поток {threadId} успешно захватил семафор за {elapsed} мс");
         }
 
         public MyDbContext Context => _context;
 
         public void Dispose()
         {
-            // НЕ вызываем Dispose() на контексте - просто очищаем трекер изменений
-            // Обертываем в try-catch, чтобы избежать ошибок, если модель еще создается
+            var threadId = Thread.CurrentThread.ManagedThreadId;
+            
+            // ВАЖНО: Освобождаем семафор ПЕРВЫМ ДЕЛОМ, чтобы другие потоки не ждали
+            // Очистка ChangeTracker может быть медленной, поэтому делаем её после освобождения семафора
+            if (_semaphoreAcquired)
+            {
+                try
+                {
+                    _semaphore.Release();
+                    Debug.WriteLine($"[DbContext] Поток {threadId} освободил семафор. Текущее количество: {_semaphore.CurrentCount}");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[DbContext] Ошибка при освобождении семафора в потоке {threadId}: {ex.Message}");
+                }
+            }
+            else
+            {
+                Debug.WriteLine($"[DbContext] Поток {threadId} не освобождает семафор, т.к. не захватывал его");
+            }
+            
+            // Теперь очищаем трекер изменений БЕЗ блокировки семафора
+            // Это безопасно, т.к. мы уже освободили семафор
             try
             {
                 if (_context != null)
@@ -37,18 +77,20 @@ namespace TradeClient
                     var database = _context.Database;
                     if (database != null)
                     {
-                        _context.ChangeTracker.Clear();
+                        try
+                        {
+                            _context.ChangeTracker.Clear();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[DbContext] Ошибка при очистке ChangeTracker в потоке {threadId}: {ex.Message}");
+                        }
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Игнорируем ошибки при очистке трекера (например, если модель еще создается)
-            }
-            finally
-            {
-                // Освобождаем семафор, чтобы другие потоки могли использовать контекст
-                _semaphore.Release();
+                Debug.WriteLine($"[DbContext] Ошибка в Dispose потока {threadId}: {ex.Message}");
             }
         }
     }
