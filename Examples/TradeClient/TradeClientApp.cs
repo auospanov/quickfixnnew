@@ -151,7 +151,7 @@ GO
         private void TimerTick(object state)
         {
             if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1") {
-                using (var dataContext = new MyDbContext())
+                using (var dataContext = DbContextFactory.Instance.CreateDbContext())
                 {
                     List<quotesSimple> tempList = new List<quotesSimple>();
                     lock (quotesSimples)
@@ -165,7 +165,7 @@ GO
                 }
             }
             if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1") {
-                using (var dataContext = new MyDbContext())
+                using (var dataContext = DbContextFactory.Instance.CreateDbContext())
                 {
                     try {
                         List<orders> tempList = new List<orders>();
@@ -219,7 +219,7 @@ GO
 
                 if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1")
                 {
-                    using (var db = new MyDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
                         var intrsView = db.instrsView.ToList();
 
@@ -351,7 +351,7 @@ GO
             {
                 try
                 {
-                    using (var db = new MyDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
                         db.heartbeat.Add(new heartbeat() { exchangeCode = Program.ADAPTER, lastTime = DateTime.Now, isReal = Program.ISREAL, isMM = 0 });
                         db.SaveChanges();
@@ -369,7 +369,7 @@ GO
                     if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                     try
                     {
-                        using (var db = new MyDbContext())
+                        using (var db = DbContextFactory.Instance.CreateDbContext())
                         {
                             int clOrdId = 0;
 
@@ -407,7 +407,7 @@ GO
                     if (isDebug) Console.WriteLine("Received Reject");
                     try
                     {
-                        using (var db = new MyDbContext())
+                        using (var db = DbContextFactory.Instance.CreateDbContext())
                         {
                             int clOrdId = 0;
 
@@ -576,7 +576,7 @@ GO
                 clOrdId = int.Parse(message.GetString(11));
                 try
                 {
-                    using (var db = new MyDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
                         var oneRec = db.NewOrders.Where(r=>r.Id==clOrdId).FirstOrDefault();
                         if(oneRec != null)
@@ -664,7 +664,7 @@ GO
     //{
     //    if (isDebug) Console.WriteLine("Received ExecutionReport");
 
-    //    using (var db = new MyDbContext())
+    //    using (var db = DbContextFactory.Instance.CreateDbContext())
     //    {
     //        var order = new FixOrder(); // аналог Java Order
 
@@ -851,7 +851,7 @@ GO
         public void OnMessage(QuickFix.FIX44.Heartbeat m, SessionID s)
         {
             try { 
-             using (var db = new MyDbContext())
+             using (var db = DbContextFactory.Instance.CreateDbContext())
              {
                 db.heartbeat.Add(new heartbeat() {  exchangeCode = Program.ADAPTER, lastTime  =DateTime.Now, isReal = Program.ISREAL, isMM = 0});
                 db.SaveChanges();
@@ -868,7 +868,7 @@ GO
             { 
                 if (isDebug) Console.WriteLine("Received ExecutionReport");
                 try { 
-                     using (var db = new MyDbContext())
+                     using (var db = DbContextFactory.Instance.CreateDbContext())
                 {
                     var order = new orders();
 
@@ -1054,7 +1054,7 @@ GO
                 {
                     if (Program.EXCH_CODE == "AIX_SP1")
                     {
-                        using (var db = new MyDbContext())
+                        using (var db = DbContextFactory.Instance.CreateDbContext())
                         {
                             var order = new orders();
 
@@ -1188,7 +1188,7 @@ GO
                 {
                     if (Program.EXCH_CODE == "ITS")
                     {
-                        using (var db = new MyDbContext())
+                        using (var db = DbContextFactory.Instance.CreateDbContext())
                         {
                             var ord = new orders();
                             ord.msgNum = long.Parse(m.Header.GetString(34));
@@ -1248,7 +1248,7 @@ GO
                     }
                     else
                     {
-                        using (var db = new MyDbContext())
+                        using (var db = DbContextFactory.Instance.CreateDbContext())
                         {
                             var order = new orders();
 
@@ -1448,7 +1448,7 @@ GO
         //        if (isDebug) Console.WriteLine("Received OrderCancelReject");
         //        try
         //        {
-        //            using (var db = new MyDbContext())
+        //            using (var db = DbContextFactory.Instance.CreateDbContext())
         //            {
         //                var order = new orders();
         //                order.clientOrderID = m.ClOrdID.Value;
@@ -1486,7 +1486,7 @@ GO
                 if (isDebug) Console.WriteLine("FIX44.Reject");
                 try
                 {
-                    using (var db = new MyDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
                         var order = new orders();
 
@@ -1517,7 +1517,7 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var db = new MyDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
                         var order = new orders();
                         //order.clientOrderID = m.ClOrdID.Value;
@@ -1552,7 +1552,7 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var db = new MyDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
                         int clOrdId = 0;
 
@@ -1590,7 +1590,7 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var db = new MyDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
                         int clOrdId = 0;
 
@@ -1628,7 +1628,7 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var db = new MyDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {                        
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
@@ -1660,7 +1660,7 @@ GO
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
                 {
-                    using (var db = new MyDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
@@ -1689,7 +1689,7 @@ GO
         {
             try
             {
-                using (var db = new MyDbContext())
+                using (var db = DbContextFactory.Instance.CreateDbContext())
                 {
                     tradeCapture tc = new tradeCapture();
                     tc.TradeReportID = m.TradeReportID.Value;
@@ -1884,7 +1884,7 @@ GO
         {
             if(isDebug) Console.WriteLine("Received MarketDataIncrementalRefresh");
             try { 
-                using (var db = new MyDbContext())
+                using (var db = DbContextFactory.Instance.CreateDbContext())
             {
                 quotesSimple quote = new quotesSimple();
                 string symbol = null;
@@ -1983,7 +1983,7 @@ GO
         {
             if(isDebug) Console.WriteLine("Received MarketDataSnapshotFullRefresh");
             try { 
-                using (var db = new MyDbContext())
+                using (var db = DbContextFactory.Instance.CreateDbContext())
             {
 
                 // Получаем символ инструмента
@@ -2084,7 +2084,7 @@ GO
                 if (isDebug) Console.WriteLine("Received OrderCancelReject");
                 try
                 {
-                    using (var db = new MyDbContext())
+                    using (var db = DbContextFactory.Instance.CreateDbContext())
                     {
                         var order = new orders();
                         order.msgNum = int.Parse(m.Header.GetString(34));
@@ -2575,15 +2575,16 @@ GO
             */
             try
             {
-                MyDbContext db = new MyDbContext();
-                //var rz1 = db.newOrders.Where(r => r.Processed_Status is null);
+                using (var db = DbContextFactory.Instance.CreateDbContext())
+                {
+                    //var rz1 = db.newOrders.Where(r => r.Processed_Status is null);
 
-                var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
-                    && r.ExchangeCode == Program.EXCH_CODE
-                    && ((r.ExpirationDate == null && r.TimeInForce != "DAY") || r.ExpirationDate >= DateTime.UtcNow.Date) //берем только те, которые еще не просрочились 
-                    ).OrderBy(r=>r.Id).Take(portionSendOrder).ToList();
-                
-                DateTime startTime = DateTime.Now;
+                    var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
+                        && r.ExchangeCode == Program.EXCH_CODE
+                        && ((r.ExpirationDate == null && r.TimeInForce != "DAY") || r.ExpirationDate >= DateTime.UtcNow.Date) //берем только те, которые еще не просрочились 
+                        ).OrderBy(r=>r.Id).Take(portionSendOrder).ToList();
+                    
+                    DateTime startTime = DateTime.Now;
 
                 //List<Int32> lstIdSended = new List<Int32>(); 
                 foreach ( var r in rz)
@@ -2968,11 +2969,12 @@ GO
                 // убрал 30.01.2026 установку статуса перенесли в метод ToApp
                 //rz.Where(r => r.Processed_Status =="send").ToList().ForEach(r => { r.Processed_Status = "processed"; r.Processed_Time = DateTime.Now; });
 
-                db.SaveChanges();
+                    db.SaveChanges();
 
-                if(DateTime.Now.AddSeconds(1) < startTime)
-                {
-                    Thread.Sleep(1000);
+                    if(DateTime.Now.AddSeconds(1) < startTime)
+                    {
+                        Thread.Sleep(1000);
+                    }
                 }
                 
             }

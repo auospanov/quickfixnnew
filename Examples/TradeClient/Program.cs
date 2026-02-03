@@ -122,8 +122,45 @@ namespace TradeClient
                 cfg = File.ReadAllText("fix_"+ ADAPTER + ".cfg");
                 System.IO.TextReader textReader = new StringReader(cfg);
                 QuickFix.SessionSettings settings = new QuickFix.SessionSettings(textReader);
-                if (TradeClientApp.isStop(GetValueByKey(cfg,"ConnectionString"))) //TradeClientApp.connection))
+                
+                // Инициализация фабрики DbContext для управления пулом подключений
+                string connectionString = GetValueByKey(cfg, "ConnectionString");
+                if (string.IsNullOrEmpty(connectionString))
                 {
+                    Console.WriteLine("Ошибка: ConnectionString не найден в конфигурации");
+                    Environment.Exit(1);
+                }
+                
+                // Добавляем параметры пула подключений ADO.NET к строке подключения
+                // Это критически важно для переиспользования подключений к БД
+                if (!connectionString.Contains("Pooling", StringComparison.OrdinalIgnoreCase))
+                {
+                    connectionString = connectionString.TrimEnd(';') + ";Pooling=true;";
+                }
+                if (!connectionString.Contains("Max Pool Size", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Max Pool Size - максимальное количество подключений в пуле ADO.NET
+                    connectionString = connectionString.TrimEnd(';') + ";Max Pool Size=100;";
+                }
+                if (!connectionString.Contains("Min Pool Size", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Min Pool Size - минимальное количество постоянно открытых подключений
+                    // Это предотвращает множественные login/logout события
+                    connectionString = connectionString.TrimEnd(';') + ";Min Pool Size=5;";
+                }
+                if (!connectionString.Contains("Connection Lifetime", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Connection Lifetime - время жизни подключения в секундах (0 = бесконечно)
+                    // Это позволяет переиспользовать подключения долгое время
+                    connectionString = connectionString.TrimEnd(';') + ";Connection Lifetime=0;";
+                }
+                
+                DbContextFactory.Initialize(connectionString);
+                Console.WriteLine("DbContextFactory инициализирована с пулом подключений");
+                
+                if (TradeClientApp.isStop(connectionString))
+                {
+                    DbContextFactory.Dispose();
                     Environment.Exit(0);
                 }
                 urlService = GetValueByKey(cfg,"urlService");  
@@ -200,6 +237,11 @@ namespace TradeClient
             {
                 Console.WriteLine(e.Message);
                 Console.WriteLine(e.StackTrace);
+            }
+            finally
+            {
+                // Освобождаем ресурсы фабрики при завершении приложения
+                DbContextFactory.Dispose();
             }
             Environment.Exit(1);
         }

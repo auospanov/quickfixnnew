@@ -20,11 +20,23 @@ namespace TradeClient
         public DbSet<NewOrders> NewOrders { get; set; }
         public DbSet<tradeCapture> TradeCapture { get; set; }
         
+        // Конструктор для использования с DbContextOptions (рекомендуемый подход)
+        public MyDbContext(DbContextOptions<MyDbContext> options) : base(options)
+        {
+        }
+
+        // Конструктор без параметров для обратной совместимости (будет использоваться только если нет фабрики)
+        public MyDbContext() : base()
+        {
+        }
+
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            
-            //optionsBuilder.UseSqlServer("Data Source=WIN-DUS0A072PNF\\SQLEXPRESS;Initial Catalog=fixdb;Persist Security Info=True;User ID=platformAdm;Password=Admin$12345; Encrypt=False;Trust Server Certificate=True");
-            optionsBuilder.UseSqlServer(Program.GetValueByKey(Program.cfg, "ConnectionString"));
+            // Используется только если DbContext создается без параметров (для обратной совместимости)
+            if (!optionsBuilder.IsConfigured)
+            {
+                optionsBuilder.UseSqlServer(Program.GetValueByKey(Program.cfg, "ConnectionString"));
+            }
         }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {            
