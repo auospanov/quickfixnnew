@@ -161,8 +161,8 @@ GO
                         quotesSimples = new ConcurrentBag<quotesSimple>();
                     }
                     tempList = tempList.OrderBy(s => int.Parse(s.msgNum)).ToList();
-                    dataContext.quotesSimple.AddRange(tempList);
-                    dataContext.SaveChanges();
+                    dataContext.Context.quotesSimple.AddRange(tempList);
+                    dataContext.Context.SaveChanges();
                 }
             }
             if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1") {
@@ -189,8 +189,8 @@ GO
                         tempList = tempList.OrderBy(s => s.msgNum).ToList();
                         if (tempList.Count() > 0)
                         {
-                            dataContext.orders.AddRange(tempList);
-                            dataContext.SaveChanges();
+                            dataContext.Context.orders.AddRange(tempList);
+                            dataContext.Context.SaveChanges();
                             
                             // Если запись прошла успешно, удаляем файл резервной копии
                             if (File.Exists(OrdersBackupFileName))
