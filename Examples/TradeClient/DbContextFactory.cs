@@ -7,12 +7,13 @@ using System.Text.RegularExpressions;
 namespace TradeClient
 {
     /// <summary>
-    /// Фабрика для создания экземпляров DbContext с использованием одного общего контекста
-    /// Использует один общий DbContext с синхронизацией для предотвращения множественных login/logout
+    /// Фабрика для создания экземпляров DbContext с использованием одного общего подключения
+    /// Использует одно физическое подключение к БД для предотвращения множественных login/logout
     /// </summary>
     public class DbContextFactory : IDisposable
     {
         private static MyDbContext? _sharedContext;
+        private static SqlConnection? _sharedConnection;
         private static readonly object _initLock = new object();
         private static readonly object _contextLock = new object();
 
@@ -30,10 +31,14 @@ namespace TradeClient
                         // Очищаем строку подключения от неподдерживаемых параметров
                         var cleanedConnectionString = CleanConnectionString(connectionString);
 
-                        // Создаем один общий контекст, который будет переиспользоваться
-                        // Это предотвращает множественные login/logout события
+                        // Создаем одно физическое подключение, которое будет переиспользоваться
+                        // Это критически важно для предотвращения множественных login/logout событий
+                        _sharedConnection = new SqlConnection(cleanedConnectionString);
+                        _sharedConnection.Open(); // Открываем подключение один раз при инициализации
+
+                        // Создаем один общий контекст, который использует это открытое подключение
                         var optionsBuilder = new DbContextOptionsBuilder<MyDbContext>();
-                        optionsBuilder.UseSqlServer(cleanedConnectionString, sqlOptions =>
+                        optionsBuilder.UseSqlServer(_sharedConnection, sqlOptions =>
                         {
                             sqlOptions.EnableRetryOnFailure(
                                 maxRetryCount: 3,
@@ -119,19 +124,30 @@ namespace TradeClient
         /// </summary>
         public static void DisposeStatic()
         {
-            if (_sharedContext != null)
+            lock (_initLock)
             {
-                lock (_initLock)
+                if (_sharedContext != null)
                 {
-                    if (_sharedContext != null)
+                    try
                     {
-                        try
-                        {
-                            _sharedContext.Dispose();
-                        }
-                        catch { }
-                        _sharedContext = null;
+                        _sharedContext.Dispose();
                     }
+                    catch { }
+                    _sharedContext = null;
+                }
+                
+                if (_sharedConnection != null)
+                {
+                    try
+                    {
+                        if (_sharedConnection.State != System.Data.ConnectionState.Closed)
+                        {
+                            _sharedConnection.Close();
+                        }
+                        _sharedConnection.Dispose();
+                    }
+                    catch { }
+                    _sharedConnection = null;
                 }
             }
         }
