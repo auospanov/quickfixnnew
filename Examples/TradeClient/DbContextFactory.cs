@@ -115,9 +115,9 @@ namespace TradeClient
         }
 
         /// <summary>
-        /// Освобождает ресурсы фабрики
+        /// Освобождает ресурсы фабрики (статический метод)
         /// </summary>
-        public static void Dispose()
+        public static void DisposeStatic()
         {
             if (_sharedContext != null)
             {

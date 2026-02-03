@@ -161,7 +161,7 @@ namespace TradeClient
                 
                 if (TradeClientApp.isStop(connectionString))
                 {
-                    DbContextFactory.Dispose();
+                    DbContextFactory.DisposeStatic();
                     Environment.Exit(0);
                 }
                 checkNewOrdersIntervalMiliseconds = Program.GetValueByKey(Program.cfg, "checkNewOrdersIntervalMiliseconds");
@@ -243,7 +243,7 @@ namespace TradeClient
             finally
             {
                 // Освобождаем ресурсы фабрики при завершении приложения
-                DbContextFactory.Dispose();
+                DbContextFactory.DisposeStatic();
             }
             Environment.Exit(1);
         }
