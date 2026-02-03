@@ -11,6 +11,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Drawing;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Runtime;
 using System.Security.Cryptography;
@@ -169,18 +170,36 @@ GO
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var dataContext = wrapper.Context;
+                    List<orders> tempList = null; // Объявляем вне try, чтобы использовать в catch
                     try {
-                        List<orders> tempList = new List<orders>();
+                        tempList = new List<orders>();
+                        
+                        // Сначала загружаем данные из файла резервной копии, если он существует
+                        List<orders> ordersFromBackup = LoadOrdersFromBackupFile();
+                        if (ordersFromBackup != null && ordersFromBackup.Count > 0)
+                        {
+                            tempList.AddRange(ordersFromBackup);
+                        }
+                        
+                        // Затем добавляем данные из кэша
                         lock (OrdersCache)
                         {
-                            tempList = OrdersCache.ToList();
+                            tempList.AddRange(OrdersCache.ToList());
                             OrdersCache = new ConcurrentBag<orders>();
                         }
+                        
                         tempList = tempList.OrderBy(s => s.msgNum).ToList();
                         if (tempList.Count() > 0)
                         {
                             dataContext.orders.AddRange(tempList);
                             dataContext.SaveChanges();
+                            
+                            // Если запись прошла успешно, удаляем файл резервной копии
+                            if (File.Exists(OrdersBackupFileName))
+                            {
+                                File.Delete(OrdersBackupFileName);
+                            }
+                            
                             if (!string.IsNullOrEmpty(Program.urlService)) {
                                 OrderSender.SendOrdersAsyncFireAndForget(JsonConvert.SerializeObject(tempList));
                             }
@@ -189,6 +208,40 @@ GO
                     catch (Exception err)
                     {
                         string mes = err.Message;
+                        
+                        // При ошибке записи в БД сохраняем данные в файл резервной копии
+                        try
+                        {
+                            // Используем tempList, который уже был собран до ошибки
+                            // Если tempList пуст или null, пытаемся восстановить из кэша
+                            if (tempList == null || tempList.Count == 0)
+                            {
+                                tempList = new List<orders>();
+                                
+                                // Загружаем существующие данные из файла
+                                List<orders> ordersFromBackup = LoadOrdersFromBackupFile();
+                                if (ordersFromBackup != null && ordersFromBackup.Count > 0)
+                                {
+                                    tempList.AddRange(ordersFromBackup);
+                                }
+                                
+                                // Добавляем данные из кэша, которые не удалось записать
+                                lock (OrdersCache)
+                                {
+                                    tempList.AddRange(OrdersCache.ToList());
+                                }
+                            }
+                            
+                            // Сохраняем объединенный список в файл
+                            if (tempList != null && tempList.Count > 0)
+                            {
+                                SaveOrdersToBackupFile(tempList);
+                            }
+                        }
+                        catch (Exception backupErr)
+                        {
+                            Console.WriteLine($"[TimerTick] Ошибка при сохранении резервной копии: {backupErr.Message}");
+                        }
                     }
 
                 }
@@ -1895,6 +1948,66 @@ GO
 
         public static ConcurrentBag<orders> OrdersCache = new ConcurrentBag<orders>();
         
+        // Имя файла для резервного сохранения заказов
+        private static readonly string OrdersBackupFileName = "OrdersCache_backup.json";
+        
+        /// <summary>
+        /// Читает заказы из файла резервной копии, если файл существует
+        /// </summary>
+        private static List<orders> LoadOrdersFromBackupFile()
+        {
+            List<orders> ordersFromFile = new List<orders>();
+            try
+            {
+                if (File.Exists(OrdersBackupFileName))
+                {
+                    string jsonContent = File.ReadAllText(OrdersBackupFileName);
+                    if (!string.IsNullOrWhiteSpace(jsonContent))
+                    {
+                        ordersFromFile = JsonConvert.DeserializeObject<List<orders>>(jsonContent);
+                        if (ordersFromFile == null)
+                        {
+                            ordersFromFile = new List<orders>();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Логируем ошибку, но не прерываем выполнение
+                Console.WriteLine($"[LoadOrdersFromBackupFile] Ошибка при чтении файла резервной копии: {ex.Message}");
+            }
+            return ordersFromFile;
+        }
+        
+        /// <summary>
+        /// Сохраняет заказы в файл резервной копии
+        /// </summary>
+        private static void SaveOrdersToBackupFile(List<orders> ordersToSave)
+        {
+            try
+            {
+                if (ordersToSave != null && ordersToSave.Count > 0)
+                {
+                    string jsonContent = JsonConvert.SerializeObject(ordersToSave, Formatting.Indented);
+                    File.WriteAllText(OrdersBackupFileName, jsonContent);
+                }
+                else
+                {
+                    // Если список пуст, удаляем файл резервной копии
+                    if (File.Exists(OrdersBackupFileName))
+                    {
+                        File.Delete(OrdersBackupFileName);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Логируем ошибку, но не прерываем выполнение
+                Console.WriteLine($"[SaveOrdersToBackupFile] Ошибка при сохранении файла резервной копии: {ex.Message}");
+            }
+        }
+        
         
         public void OnMessage(QuickFix.FIX44.MarketDataIncrementalRefresh m, SessionID s)
         {
@@ -2136,10 +2249,29 @@ GO
             //if (this.MyInitiator is null || !this.MyInitiator.IsLoggedOn)
             //    throw new ApplicationException("Somehow this.MyInitiator is not set");
             //int i = 0;
+            
+            // Читаем интервал проверки новых заказов из конфига (в секундах)
+            int checkNewOrdersIntervalSeconds = 5; // Значение по умолчанию
+            try
+            {
+                string intervalStr = Program.GetValueByKey(Program.cfg, "checkNewOrdersIntervalSeconds");
+                if (!string.IsNullOrEmpty(intervalStr))
+                {
+                    checkNewOrdersIntervalSeconds = int.Parse(intervalStr);
+                }
+            }
+            catch
+            {
+                // Используем значение по умолчанию, если не удалось прочитать из конфига
+            }
+            
             while (true)   
             {
                 if (this.MyInitiator is not null && this.MyInitiator.IsLoggedOn)
-                    checkNewOrders();                
+                    checkNewOrders();
+                
+                // Задержка между проверками (переводим секунды в миллисекунды)
+                Thread.Sleep(checkNewOrdersIntervalSeconds * 1000);
             }
             return;
             //if (this.MyInitiator is null)
