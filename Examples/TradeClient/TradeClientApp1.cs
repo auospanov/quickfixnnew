@@ -86,12 +86,12 @@ namespace TradeClient
             /*
              create PROCEDURE [dbo].[fixDataUpdateNew] 
 --универсальная процедура, используемая для:
- -- 1) обработки данных (список инструментов, маркет-дата и стаканы), полученных через FIX-протокол и в выходном параметре выдается итоговое состояние инструмента или стакана
- -- 2) выдачи данных по запросу (например, котировки для клиента)
- @messageText   nvarchar(MAX),  --текст запроса в формате json
- @resCode    varchar(10) output, --код возврата
- @resultString  nvarchar(MAX) output, --результат в формате json
- @messageType   varchar(50) = 'Normal'
+-- 1) обработки данных (список инструментов, маркет-дата и стаканы), полученных через FIX-протокол и в выходном параметре выдается итоговое состояние инструмента или стакана
+-- 2) выдачи данных по запросу (например, котировки для клиента)
+@messageText   nvarchar(MAX),  --текст запроса в формате json
+@resCode    varchar(10) output, --код возврата
+@resultString  nvarchar(MAX) output, --результат в формате json
+@messageType   varchar(50) = 'Normal'
 AS
 BEGIN
  set @resCode = '0'
@@ -108,9 +108,13 @@ GO
              */
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString.Replace("Trust Server Certificate=True", "")))
+                // Используем общее подключение из DbContextFactory вместо создания нового
+                // Это предотвращает создание дополнительных подключений к БД
+                var sharedConn = DbContextFactory.GetSharedConnection();
+                if (sharedConn != null && sharedConn.State == System.Data.ConnectionState.Open)
                 {
-                    conn.Open();
+                    // Используем существующее подключение
+                    SqlConnection conn = sharedConn;
 
                     // 1.  create a command object identifying the stored procedure
                     SqlCommand cmd = new SqlCommand("dbo.fixDataUpdateNew", conn);
@@ -138,6 +142,42 @@ GO
                     using (SqlDataReader rdr = cmd.ExecuteReader())
                     {
                         return cmd.Parameters["@resultString"].Value.ToString().ToUpper().Contains("STOP");
+                    }
+                }
+                else
+                {
+                    // Fallback: если общее подключение недоступно, создаем временное
+                    using (SqlConnection conn = new SqlConnection(connectionString.Replace("Trust Server Certificate=True", "")))
+                    {
+                        conn.Open();
+
+                        // 1.  create a command object identifying the stored procedure
+                        SqlCommand cmd = new SqlCommand("dbo.fixDataUpdateNew", conn);
+
+                        // 2. set the command object so it knows to execute a stored procedure
+                        cmd.CommandType = CommandType.StoredProcedure;
+
+                        // 3. add parameter to command, which will be passed to the stored procedure
+                        var param = new SqlParameter("@messageText", SqlDbType.NVarChar, 1000);
+                        param.Value = "{\"typeQuery\":\"SELECT\",\"objectType\":\"WORKING_STATUS\",\"exchangeCode\":\"" + Program.ADAPTER + "\",\"sourcename\":\"fix\",\"isreal\":\"" + Program.ISREAL + "\"}";
+                        param.Direction = ParameterDirection.Input;
+
+                        cmd.Parameters.Add(param);
+                        param = new SqlParameter("@resCode", "-1");
+                        param.Direction = ParameterDirection.InputOutput;
+                        cmd.Parameters.Add(param);
+                        param = new SqlParameter("@resultString", SqlDbType.NVarChar, 10);
+                        param.Value = "START";
+                        param.Direction = ParameterDirection.InputOutput;
+                        cmd.Parameters.Add(param);
+                        param = new SqlParameter("@messageType", "WORKING_STATUS");
+                        param.Direction = ParameterDirection.Input;
+                        cmd.Parameters.Add(param);
+                        // execute the command
+                        using (SqlDataReader rdr = cmd.ExecuteReader())
+                        {
+                            return cmd.Parameters["@resultString"].Value.ToString().ToUpper().Contains("STOP");
+                        }
                     }
                 }
             }

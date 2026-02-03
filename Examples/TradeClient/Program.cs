@@ -132,29 +132,8 @@ namespace TradeClient
                     Environment.Exit(1);
                 }
                 
-                // Добавляем параметры пула подключений ADO.NET к строке подключения
-                // Это критически важно для переиспользования подключений к БД
-                if (!connectionString.Contains("Pooling", StringComparison.OrdinalIgnoreCase))
-                {
-                    connectionString = connectionString.TrimEnd(';') + ";Pooling=true;";
-                }
-                if (!connectionString.Contains("Max Pool Size", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Max Pool Size - максимальное количество подключений в пуле ADO.NET
-                    connectionString = connectionString.TrimEnd(';') + ";Max Pool Size=100;";
-                }
-                if (!connectionString.Contains("Min Pool Size", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Min Pool Size - минимальное количество постоянно открытых подключений
-                    // Это предотвращает множественные login/logout события
-                    connectionString = connectionString.TrimEnd(';') + ";Min Pool Size=5;";
-                }
-                if (!connectionString.Contains("Connection Lifetime", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Connection Lifetime - время жизни подключения в секундах (0 = бесконечно)
-                    // Это позволяет переиспользовать подключения долгое время
-                    connectionString = connectionString.TrimEnd(';') + ";Connection Lifetime=0;";
-                }
+                // НЕ добавляем параметры пула подключений - пул отключен в DbContextFactory
+                // для использования строго одного подключения
                 
                 DbContextFactory.Initialize(connectionString);
                 Console.WriteLine("DbContextFactory инициализирована с пулом подключений");

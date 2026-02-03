@@ -54,6 +54,7 @@ namespace TradeClient
 
         /// <summary>
         /// Очищает строку подключения от параметров, не поддерживаемых System.Data.SqlClient
+        /// И отключает пул подключений для использования строго одного подключения
         /// </summary>
         private static string CleanConnectionString(string connectionString)
         {
@@ -71,10 +72,38 @@ namespace TradeClient
                     RegexOptions.IgnoreCase);
             }
             
+            // КРИТИЧЕСКИ ВАЖНО: Отключаем пул подключений ADO.NET
+            // Это гарантирует использование строго одного подключения
+            if (cleaned.Contains("Pooling", StringComparison.OrdinalIgnoreCase))
+            {
+                cleaned = Regex.Replace(
+                    cleaned,
+                    @"Pooling\s*=\s*[^;]+",
+                    "Pooling=false",
+                    RegexOptions.IgnoreCase);
+            }
+            else
+            {
+                cleaned = cleaned.TrimEnd(';', ' ') + ";Pooling=false";
+            }
+            
+            // Удаляем параметры пула, которые могут создавать дополнительные подключения
+            cleaned = Regex.Replace(cleaned, @"Max\s+Pool\s+Size\s*=\s*[^;]+;?", "", RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"Min\s+Pool\s+Size\s*=\s*[^;]+;?", "", RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"Connection\s+Lifetime\s*=\s*[^;]+;?", "", RegexOptions.IgnoreCase);
+            
             // Убираем двойные точки с запятой и лишние пробелы
             cleaned = cleaned.Replace(";;", ";").TrimEnd(';', ' ');
-
+            
             return cleaned;
+        }
+
+        /// <summary>
+        /// Получить общее подключение для использования в других методах (например, isStop)
+        /// </summary>
+        public static SqlConnection? GetSharedConnection()
+        {
+            return _sharedConnection;
         }
 
         /// <summary>
