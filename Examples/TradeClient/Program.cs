@@ -1,17 +1,18 @@
-﻿using System;
+﻿using ClassLibrary2;
+using Microsoft.Identity.Client;
+using Newtonsoft.Json;
+using QuickFix;
+using QuickFix.Fields;
+using QuickFix.Logger;
+using QuickFix.Store;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
-using Microsoft.Identity.Client;
-using QuickFix.Logger;
-using QuickFix.Store;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
-using ClassLibrary2;
-using Newtonsoft.Json;
-using QuickFix.Fields;
 
 namespace TradeClient
 {
@@ -47,7 +48,7 @@ namespace TradeClient
                 DailyLogger.Log($"[TaskScheduler] Unobserved task exception: {args.Exception.Message}");
             };
             #if DEBUG
-                ADAPTER = "kaseSpot"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kase kaseDropCopy kaseCurr kaseCurrDropCopy kaseSpot kaseSpotDropCopy its aix_SP1
+                ADAPTER = "aix"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kase kaseDropCopy kaseCurr kaseCurrDropCopy kaseSpot kaseSpotDropCopy its aix_SP1
 #endif
 
             try {ADAPTER = args[0]; }catch(Exception ex){}
@@ -206,13 +207,19 @@ namespace TradeClient
                 initiator.Start();
                 application.Run();
                 //initiator.Stop();
-                
-              /*
-               var app = new FailoverApp();
-               app.Start();
-               //app.Run();
-                */
 
+                /*
+                 var app = new FailoverApp();
+                 app.Start();
+                 //app.Run();
+                  */
+                while (true)
+                {
+                    if (TradeClientApp.isStop(Program.GetValueByKey(Program.cfg, "ConnectionString")))
+                    {
+                        initiator.Stop();
+                    }
+                }
             }
             catch (Exception e)
             {

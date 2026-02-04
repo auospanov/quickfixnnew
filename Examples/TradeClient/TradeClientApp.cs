@@ -255,7 +255,7 @@ GO
                     catch (Exception err)
                     {
                         string mes = err.Message;
-                        
+                        Console.Write($"Ошибка записи в базу данных пачки {mes}");
                         // При ошибке записи в БД сохраняем данные в файл резервной копии
                         try
                         {
