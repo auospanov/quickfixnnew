@@ -85,7 +85,7 @@ namespace TradeClient
         }
         static async Task ExitAfterDelayAsync(int milliseconds)
         {
-            await Task.Delay(milliseconds);
+            await Task.Delay(milliseconds);            
             Environment.Exit(0);
         }
 
@@ -2724,6 +2724,28 @@ GO
 
                     SendMessage(req);
                 }
+                else if (Program.EXCH_CODE == "AIX")
+                {
+                    Side side;
+                    if (ord.Direction == "CANCEL_BUY") side = new Side(Side.BUY);
+                    else if (ord.Direction == "CANCEL_SELL") side = new Side(Side.SELL);
+                    else
+                    {
+                        //здесь нужно поставить логирование
+                        return;
+                    }
+                    QuickFix.FIX50SP2.OrderCancelRequest req = new QuickFix.FIX50SP2.OrderCancelRequest();
+                    if (!string.IsNullOrEmpty(ord.OrigClOrderID)) req.OrigClOrdID = new OrigClOrdID(ord.OrigClOrderID.ToString());
+                    req.ClOrdID = new ClOrdID(ord.Id.ToString());
+                    req.TransactTime = new TransactTime(DateTime.Now);
+                    req.Symbol = new Symbol(ord.Ticker);
+                    req.Side = side;
+                    //req.Account = new Account(ord.Acc);
+                    req.OrderQty = new OrderQty((int)ord.Quantity.Value);
+                    req.Header.GetString(Tags.BeginString);
+
+                    SendMessage(req);
+                }
                 else if (Program.EXCH_CODE == "AIX_SP1")
                 {
                     Side side;
@@ -2827,7 +2849,7 @@ GO
                     else if (r.Direction.ToUpper() == "CANCEL_BUY" || r.Direction.ToUpper() == "CANCEL_SELL")
                     {
                         cancelOrder(r);
-                        r.Processed_Status = "send";
+                        //r.Processed_Status = "send";
                         continue;
                     }
                     else

@@ -204,6 +204,7 @@ namespace TradeClient
                 // this is a developer-test kludge.  do not emulate.
                 application.MyInitiator = initiator;
 
+
                 initiator.Start();
                 application.Run();
                 //initiator.Stop();
@@ -213,13 +214,13 @@ namespace TradeClient
                  app.Start();
                  //app.Run();
                   */
-                while (true)
-                {
-                    if (TradeClientApp.isStop(Program.GetValueByKey(Program.cfg, "ConnectionString")))
-                    {
-                        initiator.Stop();
-                    }
-                }
+                //while (true)
+                //{
+                //    if (TradeClientApp.isStop(Program.GetValueByKey(Program.cfg, "ConnectionString")))
+                //    {
+                //        initiator.Stop();
+                //    }
+                //}
             }
             catch (Exception e)
             {
@@ -233,7 +234,11 @@ namespace TradeClient
             }
             Environment.Exit(1);
         }
-
+        static async Task ExitAfterDelayAsync(int milliseconds, QuickFix.Transport.SocketInitiator initiator)
+        {
+            await Task.Delay(milliseconds);
+            initiator.Stop();
+        }
         public static string GetValueByKey(string fileContent, string key)
         {
             var lines = fileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
