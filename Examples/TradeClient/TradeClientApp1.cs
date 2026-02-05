@@ -61,8 +61,6 @@ namespace TradeClient
 
         #region IApplication interface overrides
         private readonly Dictionary<SessionID, string> _sessionPasswords = new();
-        // Флаг для отслеживания ошибки последовательности MsgSeqNum too low
-        private readonly Dictionary<SessionID, bool> _sequenceErrorFlags = new();
 
         public void OnCreate(SessionID sessionId)
         {
@@ -343,15 +341,6 @@ GO
 
         public void OnLogon(SessionID sessionId)
         {
-            // При успешном Logon сбрасываем флаг ошибки последовательности
-            if (_sequenceErrorFlags.ContainsKey(sessionId) && _sequenceErrorFlags[sessionId])
-            {
-                _sequenceErrorFlags[sessionId] = false;
-                string logMsg = $"[SEQUENCE RECOVERY] Successful Logon for session {sessionId} after MsgSeqNum error. Sequence reset completed.";
-                Console.WriteLine(logMsg);
-                DailyLogger.Log(logMsg);
-            }
-
             //запрос справочника инструментов
             if (Program.GetValueByKey(Program.cfg, "IsInstrRequest") == "1")
                 try
@@ -536,6 +525,95 @@ GO
                 }
 
             }
+            // Обработка Logout сообщений с ошибками последовательности
+            else if (message.Header.GetString(QuickFix.Fields.Tags.MsgType) == QuickFix.Fields.MsgType.LOGOUT)
+            {
+                try
+                {
+                    // Проверяем наличие текста ошибки в поле 58 (Text)
+                    if (message.IsSetField(QuickFix.Fields.Tags.Text))
+                    {
+                        string text = message.GetString(QuickFix.Fields.Tags.Text);
+                        
+                        // Проверяем, содержит ли текст информацию о последовательности
+                        // Формат: "Lower sequence received than expected without PossDup flag. Expected/Received = 2943/1"
+                        if (text.Contains("sequence", StringComparison.OrdinalIgnoreCase) && 
+                            text.Contains("Expected/Received", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Извлекаем номер последовательности из формата "Expected/Received = 2943/1"
+                            var match = System.Text.RegularExpressions.Regex.Match(
+                                text, 
+                                @"Expected/Received\s*=\s*(\d+)/(\d+)", 
+                                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            
+                            if (match.Success && match.Groups.Count > 2)
+                            {
+                                // Берем второй номер (полученный номер последовательности)
+                                if (ulong.TryParse(match.Groups[2].Value, out ulong receivedSeqNum))
+                                {
+                                    // Получаем сессию и синхронизируем последовательность
+                                    var session = Session.LookupSession(sessionId);
+                                    if (session != null)
+                                    {
+                                        // Устанавливаем NextTargetMsgSeqNum на полученный номер + 1
+                                        // Это позволит продолжить обмен с этого номера
+                                        session.NextTargetMsgSeqNum = receivedSeqNum + 1;
+                                        
+                                        string logMsg = $"[SEQUENCE SYNC FROM LOGOUT] Synchronized sequence number for session {sessionId}. " +
+                                                       $"Set NextTargetMsgSeqNum to {receivedSeqNum + 1} (received: {receivedSeqNum}). " +
+                                                       $"Error text: {text}";
+                                        Console.WriteLine(logMsg);
+                                        DailyLogger.Log(logMsg);
+                                        
+                                        if (isDebug)
+                                        {
+                                            Console.WriteLine($"==Sequence synchronized from Logout: NextTargetMsgSeqNum = {session.NextTargetMsgSeqNum}==");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        string logMsg = $"[SEQUENCE ERROR] Session not found for {sessionId} during sequence sync from Logout.";
+                                        Console.WriteLine(logMsg);
+                                        DailyLogger.Log(logMsg);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // Пробуем альтернативный формат: "received 59" или "received = 59"
+                                var altMatch = System.Text.RegularExpressions.Regex.Match(
+                                    text, 
+                                    @"received\s*[=:]?\s*(\d+)", 
+                                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                
+                                if (altMatch.Success && altMatch.Groups.Count > 1)
+                                {
+                                    if (ulong.TryParse(altMatch.Groups[1].Value, out ulong receivedSeqNum))
+                                    {
+                                        var session = Session.LookupSession(sessionId);
+                                        if (session != null)
+                                        {
+                                            session.NextTargetMsgSeqNum = receivedSeqNum + 1;
+                                            
+                                            string logMsg = $"[SEQUENCE SYNC FROM LOGOUT] Synchronized sequence number for session {sessionId}. " +
+                                                           $"Set NextTargetMsgSeqNum to {receivedSeqNum + 1} (received: {receivedSeqNum}). " +
+                                                           $"Error text: {text}";
+                                            Console.WriteLine(logMsg);
+                                            DailyLogger.Log(logMsg);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    string logMsg = $"[SEQUENCE ERROR] Exception during sequence sync from Logout: {ex.Message}";
+                    Console.WriteLine(logMsg);
+                    DailyLogger.Log(logMsg);
+                }
+            }
 
         }
         public void ToAdmin(Message message, SessionID sessionId)
@@ -580,21 +658,7 @@ GO
                     Program.newPassword = newPassword;
                 }
                 //временно добавил 07.11.2025
-                // Проверяем, была ли ошибка последовательности MsgSeqNum too low
-                bool forceReset = _sequenceErrorFlags.ContainsKey(sessionId) && _sequenceErrorFlags[sessionId];
-                
-                if (forceReset)
-                {
-                    // Принудительно устанавливаем ResetSeqNumFlag=Y для сброса последовательности
-                    message.SetField(new ResetSeqNumFlag(true));
-                    string logMsg = $"[SEQUENCE RECOVERY] Forcing ResetSeqNumFlag=Y for session {sessionId} due to previous MsgSeqNum too low error.";
-                    Console.WriteLine(logMsg);
-                    DailyLogger.Log(logMsg);
-                    
-                    // Сбрасываем флаг после использования
-                    _sequenceErrorFlags[sessionId] = false;
-                }
-                else if (sessionConfig.Has("ResetSeqNumFlag"))
+                if (sessionConfig.Has("ResetSeqNumFlag"))
                 {
                     bool val = sessionConfig.GetString("ResetSeqNumFlag") == "Y" ? true : false;
                     message.SetField(new ResetSeqNumFlag(val));
@@ -624,14 +688,59 @@ GO
                 string errorMessage = ex.Message ?? "";
                 if (errorMessage.Contains("MsgSeqNum too low", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Устанавливаем флаг ошибки последовательности для этой сессии
-                    _sequenceErrorFlags[sessionId] = true;
-                    
-                    // Логируем ошибку
-                    string logMsg = $"[SEQUENCE ERROR] MsgSeqNum too low detected for session {sessionId}: {errorMessage}. " +
-                                   "Will force ResetSeqNumFlag=Y on next Logon.";
-                    Console.WriteLine(logMsg);
-                    DailyLogger.Log(logMsg);
+                    try
+                    {
+                        // Извлекаем номер последовательности из сообщения об ошибке
+                        // Формат: "MsgSeqNum too low, expecting 675 but received 59"
+                        var match = System.Text.RegularExpressions.Regex.Match(
+                            errorMessage, 
+                            @"received\s+(\d+)", 
+                            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        
+                        if (match.Success && match.Groups.Count > 1)
+                        {
+                            if (ulong.TryParse(match.Groups[1].Value, out ulong receivedSeqNum))
+                            {
+                                // Получаем сессию и синхронизируем последовательность
+                                var session = Session.LookupSession(sessionId);
+                                if (session != null)
+                                {
+                                    // Устанавливаем NextTargetMsgSeqNum на полученный номер + 1
+                                    // Это позволит продолжить обмен с этого номера
+                                    session.NextTargetMsgSeqNum = receivedSeqNum + 1;
+                                    
+                                    string logMsg = $"[SEQUENCE SYNC] Synchronized sequence number for session {sessionId}. " +
+                                                   $"Set NextTargetMsgSeqNum to {receivedSeqNum + 1} (received: {receivedSeqNum}).";
+                                    Console.WriteLine(logMsg);
+                                    DailyLogger.Log(logMsg);
+                                    
+                                    if (isDebug)
+                                    {
+                                        Console.WriteLine($"==Sequence synchronized: NextTargetMsgSeqNum = {session.NextTargetMsgSeqNum}==");
+                                    }
+                                }
+                                else
+                                {
+                                    string logMsg = $"[SEQUENCE ERROR] Session not found for {sessionId} during sequence sync.";
+                                    Console.WriteLine(logMsg);
+                                    DailyLogger.Log(logMsg);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Если не удалось извлечь номер, логируем ошибку
+                            string logMsg = $"[SEQUENCE ERROR] Could not extract sequence number from error: {errorMessage}";
+                            Console.WriteLine(logMsg);
+                            DailyLogger.Log(logMsg);
+                        }
+                    }
+                    catch (Exception syncEx)
+                    {
+                        string logMsg = $"[SEQUENCE ERROR] Exception during sequence sync: {syncEx.Message}";
+                        Console.WriteLine(logMsg);
+                        DailyLogger.Log(logMsg);
+                    }
                     
                     if (isDebug)
                     {
