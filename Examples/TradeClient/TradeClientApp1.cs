@@ -61,6 +61,8 @@ namespace TradeClient
 
         #region IApplication interface overrides
         private readonly Dictionary<SessionID, string> _sessionPasswords = new();
+        // Флаг для отслеживания ошибки последовательности MsgSeqNum too low
+        private readonly Dictionary<SessionID, bool> _sequenceErrorFlags = new();
 
         public void OnCreate(SessionID sessionId)
         {
@@ -341,6 +343,14 @@ GO
 
         public void OnLogon(SessionID sessionId)
         {
+            // При успешном Logon сбрасываем флаг ошибки последовательности
+            if (_sequenceErrorFlags.ContainsKey(sessionId) && _sequenceErrorFlags[sessionId])
+            {
+                _sequenceErrorFlags[sessionId] = false;
+                string logMsg = $"[SEQUENCE RECOVERY] Successful Logon for session {sessionId} after MsgSeqNum error. Sequence reset completed.";
+                Console.WriteLine(logMsg);
+                DailyLogger.Log(logMsg);
+            }
 
             //запрос справочника инструментов
             if (Program.GetValueByKey(Program.cfg, "IsInstrRequest") == "1")
@@ -570,7 +580,21 @@ GO
                     Program.newPassword = newPassword;
                 }
                 //временно добавил 07.11.2025
-                if (sessionConfig.Has("ResetSeqNumFlag"))
+                // Проверяем, была ли ошибка последовательности MsgSeqNum too low
+                bool forceReset = _sequenceErrorFlags.ContainsKey(sessionId) && _sequenceErrorFlags[sessionId];
+                
+                if (forceReset)
+                {
+                    // Принудительно устанавливаем ResetSeqNumFlag=Y для сброса последовательности
+                    message.SetField(new ResetSeqNumFlag(true));
+                    string logMsg = $"[SEQUENCE RECOVERY] Forcing ResetSeqNumFlag=Y for session {sessionId} due to previous MsgSeqNum too low error.";
+                    Console.WriteLine(logMsg);
+                    DailyLogger.Log(logMsg);
+                    
+                    // Сбрасываем флаг после использования
+                    _sequenceErrorFlags[sessionId] = false;
+                }
+                else if (sessionConfig.Has("ResetSeqNumFlag"))
                 {
                     bool val = sessionConfig.GetString("ResetSeqNumFlag") == "Y" ? true : false;
                     message.SetField(new ResetSeqNumFlag(val));
@@ -593,6 +617,36 @@ GO
             {
                 Crack(message, sessionId);
                 Console.WriteLine($"[FromApp] {message}");
+            }
+            catch (QuickFIXException ex)
+            {
+                // Обработка ошибки последовательности "MsgSeqNum too low"
+                string errorMessage = ex.Message ?? "";
+                if (errorMessage.Contains("MsgSeqNum too low", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Устанавливаем флаг ошибки последовательности для этой сессии
+                    _sequenceErrorFlags[sessionId] = true;
+                    
+                    // Логируем ошибку
+                    string logMsg = $"[SEQUENCE ERROR] MsgSeqNum too low detected for session {sessionId}: {errorMessage}. " +
+                                   "Will force ResetSeqNumFlag=Y on next Logon.";
+                    Console.WriteLine(logMsg);
+                    DailyLogger.Log(logMsg);
+                    
+                    if (isDebug)
+                    {
+                        Console.WriteLine("==QuickFIXException (MsgSeqNum too low)==");
+                        Console.WriteLine(ex.ToString());
+                        Console.WriteLine(ex.StackTrace);
+                    }
+                }
+                else
+                {
+                    // Другие QuickFIXException обрабатываем как обычно
+                    if (isDebug) Console.WriteLine("==QuickFIXException==");
+                    if (isDebug) Console.WriteLine(ex.ToString());
+                    if (isDebug) Console.WriteLine(ex.StackTrace);
+                }
             }
             catch (Exception ex)
             {
