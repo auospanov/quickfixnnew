@@ -634,12 +634,12 @@ GO
                                     var session = Session.LookupSession(sessionId);
                                     if (session != null)
                                     {
-                                        // Устанавливаем NextTargetMsgSeqNum на полученный номер + 1
-                                        // Это позволит продолжить обмен с этого номера
-                                        session.NextTargetMsgSeqNum = receivedSeqNum + 1;
+                                        // Устанавливаем NextTargetMsgSeqNum на полученный номер напрямую
+                                        // Берем конкретное значение, на которое ругается сервер
+                                        session.NextTargetMsgSeqNum = receivedSeqNum;
                                         
                                         string logMsg = $"[SEQUENCE SYNC FROM LOGOUT] Synchronized sequence number for session {sessionId}. " +
-                                                       $"Set NextTargetMsgSeqNum to {receivedSeqNum + 1} (received: {receivedSeqNum}). " +
+                                                       $"Set NextTargetMsgSeqNum to {receivedSeqNum} (received from server: {receivedSeqNum}). " +
                                                        $"Error text: {text}";
                                         Console.WriteLine(logMsg);
                                         DailyLogger.Log(logMsg);
@@ -672,10 +672,11 @@ GO
                                         var session = Session.LookupSession(sessionId);
                                         if (session != null)
                                         {
-                                            session.NextTargetMsgSeqNum = receivedSeqNum + 1;
+                                            // Устанавливаем NextTargetMsgSeqNum на полученный номер напрямую
+                                            session.NextTargetMsgSeqNum = receivedSeqNum;
                                             
                                             string logMsg = $"[SEQUENCE SYNC FROM LOGOUT] Synchronized sequence number for session {sessionId}. " +
-                                                           $"Set NextTargetMsgSeqNum to {receivedSeqNum + 1} (received: {receivedSeqNum}). " +
+                                                           $"Set NextTargetMsgSeqNum to {receivedSeqNum} (received from server: {receivedSeqNum}). " +
                                                            $"Error text: {text}";
                                             Console.WriteLine(logMsg);
                                             DailyLogger.Log(logMsg);
@@ -784,12 +785,12 @@ GO
                                 var session = Session.LookupSession(sessionId);
                                 if (session != null)
                                 {
-                                    // Устанавливаем NextTargetMsgSeqNum на полученный номер + 1
-                                    // Это позволит продолжить обмен с этого номера
-                                    session.NextTargetMsgSeqNum = receivedSeqNum + 1;
+                                    // Устанавливаем NextTargetMsgSeqNum на полученный номер напрямую
+                                    // Берем конкретное значение, на которое ругается сервер
+                                    session.NextTargetMsgSeqNum = receivedSeqNum;
                                     
                                     string logMsg = $"[SEQUENCE SYNC] Synchronized sequence number for session {sessionId}. " +
-                                                   $"Set NextTargetMsgSeqNum to {receivedSeqNum + 1} (received: {receivedSeqNum}).";
+                                                   $"Set NextTargetMsgSeqNum to {receivedSeqNum} (received from server: {receivedSeqNum}).";
                                     Console.WriteLine(logMsg);
                                     DailyLogger.Log(logMsg);
                                     
