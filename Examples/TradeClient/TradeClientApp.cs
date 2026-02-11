@@ -616,6 +616,7 @@ GO
                         
                         // Проверяем, содержит ли текст информацию о последовательности
                         // Формат: "Lower sequence received than expected without PossDup flag. Expected/Received = 2943/1"
+                        // Нужно брать "Expected 2943" - это то, что сервер ожидает получить
                         if (text.Contains("sequence", StringComparison.OrdinalIgnoreCase) && 
                             text.Contains("Expected/Received", StringComparison.OrdinalIgnoreCase))
                         {
@@ -627,19 +628,19 @@ GO
                             
                             if (match.Success && match.Groups.Count > 2)
                             {
-                                // Берем второй номер (полученный номер последовательности)
-                                if (ulong.TryParse(match.Groups[2].Value, out ulong receivedSeqNum))
+                                // Берем первый номер (Expected) - это то, что сервер ожидает получить
+                                if (ulong.TryParse(match.Groups[1].Value, out ulong expectedSeqNum))
                                 {
                                     // Получаем сессию и синхронизируем последовательность
                                     var session = Session.LookupSession(sessionId);
                                     if (session != null)
                                     {
-                                        // Устанавливаем NextTargetMsgSeqNum на полученный номер напрямую
-                                        // Берем конкретное значение, на которое ругается сервер
-                                        session.NextTargetMsgSeqNum = receivedSeqNum;
+                                        // Устанавливаем NextTargetMsgSeqNum на ожидаемое значение сервера
+                                        // Это то значение, которое сервер ожидает получить от нас
+                                        session.NextTargetMsgSeqNum = expectedSeqNum;
                                         
                                         string logMsg = $"[SEQUENCE SYNC FROM LOGOUT] Synchronized sequence number for session {sessionId}. " +
-                                                       $"Set NextTargetMsgSeqNum to {receivedSeqNum} (received from server: {receivedSeqNum}). " +
+                                                       $"Set NextTargetMsgSeqNum to {expectedSeqNum} (server expecting: {expectedSeqNum}). " +
                                                        $"Error text: {text}";
                                         Console.WriteLine(logMsg);
                                         DailyLogger.Log(logMsg);
@@ -659,24 +660,24 @@ GO
                             }
                             else
                             {
-                                // Пробуем альтернативный формат: "received 59" или "received = 59"
+                                // Пробуем альтернативный формат: "expecting 675" или "Expected = 2943"
                                 var altMatch = System.Text.RegularExpressions.Regex.Match(
                                     text, 
-                                    @"received\s*[=:]?\s*(\d+)", 
+                                    @"(?:expecting|Expected)\s*[=:]?\s*(\d+)", 
                                     System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                                 
                                 if (altMatch.Success && altMatch.Groups.Count > 1)
                                 {
-                                    if (ulong.TryParse(altMatch.Groups[1].Value, out ulong receivedSeqNum))
+                                    if (ulong.TryParse(altMatch.Groups[1].Value, out ulong expectedSeqNum))
                                     {
                                         var session = Session.LookupSession(sessionId);
                                         if (session != null)
                                         {
-                                            // Устанавливаем NextTargetMsgSeqNum на полученный номер напрямую
-                                            session.NextTargetMsgSeqNum = receivedSeqNum;
+                                            // Устанавливаем NextTargetMsgSeqNum на ожидаемое значение сервера
+                                            session.NextTargetMsgSeqNum = expectedSeqNum;
                                             
                                             string logMsg = $"[SEQUENCE SYNC FROM LOGOUT] Synchronized sequence number for session {sessionId}. " +
-                                                           $"Set NextTargetMsgSeqNum to {receivedSeqNum} (received from server: {receivedSeqNum}). " +
+                                                           $"Set NextTargetMsgSeqNum to {expectedSeqNum} (server expecting: {expectedSeqNum}). " +
                                                            $"Error text: {text}";
                                             Console.WriteLine(logMsg);
                                             DailyLogger.Log(logMsg);
@@ -772,25 +773,27 @@ GO
                     {
                         // Извлекаем номер последовательности из сообщения об ошибке
                         // Формат: "MsgSeqNum too low, expecting 675 but received 59"
+                        // Нужно брать "expecting 675" - это то, что сервер ожидает получить
                         var match = System.Text.RegularExpressions.Regex.Match(
                             errorMessage, 
-                            @"received\s+(\d+)", 
+                            @"expecting\s+(\d+)", 
                             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                         
                         if (match.Success && match.Groups.Count > 1)
                         {
-                            if (ulong.TryParse(match.Groups[1].Value, out ulong receivedSeqNum))
+                            if (ulong.TryParse(match.Groups[1].Value, out ulong expectedSeqNum))
                             {
                                 // Получаем сессию и синхронизируем последовательность
                                 var session = Session.LookupSession(sessionId);
                                 if (session != null)
                                 {
-                                    // Устанавливаем NextTargetMsgSeqNum на полученный номер напрямую
-                                    // Берем конкретное значение, на которое ругается сервер
-                                    session.NextTargetMsgSeqNum = receivedSeqNum;
+                                    // Устанавливаем NextTargetMsgSeqNum на ожидаемое значение сервера
+                                    // Это то значение, которое сервер ожидает получить от нас
+                                    session.NextTargetMsgSeqNum = expectedSeqNum;
                                     
                                     string logMsg = $"[SEQUENCE SYNC] Synchronized sequence number for session {sessionId}. " +
-                                                   $"Set NextTargetMsgSeqNum to {receivedSeqNum} (received from server: {receivedSeqNum}).";
+                                                   $"Set NextTargetMsgSeqNum to {expectedSeqNum} (server expecting: {expectedSeqNum}). " +
+                                                   $"Error: {errorMessage}";
                                     Console.WriteLine(logMsg);
                                     DailyLogger.Log(logMsg);
                                     
@@ -810,7 +813,7 @@ GO
                         else
                         {
                             // Если не удалось извлечь номер, логируем ошибку
-                            string logMsg = $"[SEQUENCE ERROR] Could not extract sequence number from error: {errorMessage}";
+                            string logMsg = $"[SEQUENCE ERROR] Could not extract expected sequence number from error: {errorMessage}";
                             Console.WriteLine(logMsg);
                             DailyLogger.Log(logMsg);
                         }
