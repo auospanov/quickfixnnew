@@ -613,12 +613,14 @@ GO
                     if (message.IsSetField(QuickFix.Fields.Tags.Text))
                     {
                         string text = message.GetString(QuickFix.Fields.Tags.Text);
-                        
+
                         // Проверяем, содержит ли текст информацию о последовательности
                         // Формат: "Lower sequence received than expected without PossDup flag. Expected/Received = 2943/1"
                         // Нужно брать "Expected 2943" - это то, что сервер ожидает получить
-                        if (text.Contains("sequence", StringComparison.OrdinalIgnoreCase) && 
-                            text.Contains("Expected/Received", StringComparison.OrdinalIgnoreCase))
+                        //MsgSeqNum too low, expecting 675 but received 59
+                        
+                        if ((text.Contains("sequence", StringComparison.OrdinalIgnoreCase) && text.Contains("Expected/Received", StringComparison.OrdinalIgnoreCase))
+                            || text.Contains("MsgSeqNum too low", StringComparison.OrdinalIgnoreCase))
                         {
                             // Извлекаем номер последовательности из формата "Expected/Received = 2943/1"
                             var match = System.Text.RegularExpressions.Regex.Match(
@@ -635,19 +637,19 @@ GO
                                     var session = Session.LookupSession(sessionId);
                                     if (session != null)
                                     {
-                                        // Устанавливаем NextTargetMsgSeqNum на ожидаемое значение сервера
+                                        // Устанавливаем NextSenderMsgSeqNum на ожидаемое значение сервера
                                         // Это то значение, которое сервер ожидает получить от нас
-                                        session.NextTargetMsgSeqNum = expectedSeqNum;
+                                        session.NextSenderMsgSeqNum = expectedSeqNum;
                                         
                                         string logMsg = $"[SEQUENCE SYNC FROM LOGOUT] Synchronized sequence number for session {sessionId}. " +
-                                                       $"Set NextTargetMsgSeqNum to {expectedSeqNum} (server expecting: {expectedSeqNum}). " +
+                                                       $"Set NextSenderMsgSeqNum to {expectedSeqNum} (server expecting: {expectedSeqNum}). " +
                                                        $"Error text: {text}";
                                         Console.WriteLine(logMsg);
                                         DailyLogger.Log(logMsg);
                                         
                                         if (isDebug)
                                         {
-                                            Console.WriteLine($"==Sequence synchronized from Logout: NextTargetMsgSeqNum = {session.NextTargetMsgSeqNum}==");
+                                            Console.WriteLine($"==Sequence synchronized from Logout: NextSenderMsgSeqNum = {session.NextSenderMsgSeqNum}==");
                                         }
                                     }
                                     else
@@ -673,11 +675,11 @@ GO
                                         var session = Session.LookupSession(sessionId);
                                         if (session != null)
                                         {
-                                            // Устанавливаем NextTargetMsgSeqNum на ожидаемое значение сервера
-                                            session.NextTargetMsgSeqNum = expectedSeqNum;
+                                            // Устанавливаем NextSenderMsgSeqNum на ожидаемое значение сервера
+                                            session.NextSenderMsgSeqNum = expectedSeqNum;
                                             
                                             string logMsg = $"[SEQUENCE SYNC FROM LOGOUT] Synchronized sequence number for session {sessionId}. " +
-                                                           $"Set NextTargetMsgSeqNum to {expectedSeqNum} (server expecting: {expectedSeqNum}). " +
+                                                           $"Set NextSenderMsgSeqNum to {expectedSeqNum} (server expecting: {expectedSeqNum}). " +
                                                            $"Error text: {text}";
                                             Console.WriteLine(logMsg);
                                             DailyLogger.Log(logMsg);
