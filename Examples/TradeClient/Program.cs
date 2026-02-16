@@ -1,4 +1,4 @@
-﻿using ClassLibrary2;
+using ClassLibrary2;
 using Microsoft.Identity.Client;
 using Newtonsoft.Json;
 using QuickFix;
@@ -144,6 +144,16 @@ namespace TradeClient
                     DbContextFactory.DisposeStatic();
                     Environment.Exit(0);
                 }
+                // Пул подключений к Oracle AIS (для JYSAN/Tengri — заявки для отправки на FIX)
+                string broker = GetValueByKey(cfg, "Broker") ?? GetValueByKey(cfg, "ExchangeCode") ?? "";
+                if (broker.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || broker.Equals("Tengri", StringComparison.OrdinalIgnoreCase))
+                {
+                    string oracleAisCs = OracleAisConnectionFactory.BuildConnectionString(cfg);
+                    if (!string.IsNullOrEmpty(oracleAisCs))
+                    {
+                        OracleAisConnectionFactory.Initialize(oracleAisCs);
+                    }
+                }
                 checkNewOrdersIntervalMiliseconds = Program.GetValueByKey(Program.cfg, "checkNewOrdersIntervalMiliseconds");
                 urlService = GetValueByKey(cfg,"urlService");  
                 urlServiceAuthorization = GetValueByKey(cfg,"urlServiceAuthorization");
@@ -229,6 +239,7 @@ namespace TradeClient
             }
             finally
             {
+                OracleAisConnectionFactory.DisposeStatic();
                 // Освобождаем ресурсы фабрики при завершении приложения
                 DbContextFactory.DisposeStatic();
             }

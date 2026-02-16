@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using QuickFix;
 using QuickFix.Fields;
@@ -19,6 +19,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Oracle.ManagedDataAccess.Client;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 using static System.Collections.Specialized.BitVector32;
 using ApplicationException = System.ApplicationException;
@@ -32,8 +33,10 @@ namespace TradeClient
         public static string connection = "";// "Data Source=WIN-DUS0A072PNF\\SQLEXPRESS;Initial Catalog=drivers_beSQL_new;Persist Security Info=True;User ID=platformAdm;Password=Admin$12345";
         public static List<instrsView> instrs = new List<instrsView>();
         private Timer _timer;
+        private Timer _timerGetOrdersForSend;
         private readonly int _timerBatchCollectMilliseconds = 10_000; // например, 10 секунд
         private readonly int portionSendOrder = 100;
+        private readonly int _getOrdersForSendIntervalMilliseconds = 0; // 0 = отключено
         //private readonly int _timerIntervalMilliseconds = int.Parse(Program.GetValueByKey(Program.cfg, "timerIntervalMilliseconds"));
         public TradeClientApp(SessionSettings settings)
         {
@@ -53,6 +56,13 @@ namespace TradeClient
             {
                 _timerBatchCollectMilliseconds = int.Parse(Program.GetValueByKey(Program.cfg, "timerBatchCollectMilliseconds"));
                 portionSendOrder = int.Parse(Program.GetValueByKey(Program.cfg, "portionSendOrder"));
+            }
+            catch { }
+            try
+            {
+                var intervalStr = Program.GetValueByKey(Program.cfg, "GetOrdersForSendIntervalMilliseconds");
+                if (!string.IsNullOrEmpty(intervalStr) && int.TryParse(intervalStr, out int interval) && interval > 0)
+                    _getOrdersForSendIntervalMilliseconds = interval;
             }
             catch { }
         }
@@ -197,6 +207,142 @@ GO
             return true;
         }
 
+        /// <summary>
+        /// Вызов dbo.fixDataUpdateNew с JSON-данными (аналог fixGetUpdateDataNew в Java).
+        /// </summary>
+        /// <param name="data">JSON-строка (например, заявка из АИС)</param>
+        /// <returns>(resCode, resultString)</returns>
+        public static (string resCode, string resultString) FixGetUpdateDataNew(string data)
+        {
+            if (string.IsNullOrEmpty(data))
+                return ("-1", "");
+            try
+            {
+                var sharedConn = DbContextFactory.GetSharedConnection();
+                if (sharedConn != null && sharedConn.State == ConnectionState.Open)
+                {
+                    lock (sharedConn)
+                    {
+                        using (var cmd = new SqlCommand("dbo.fixDataUpdateNew", sharedConn))
+                        {
+                            cmd.CommandType = CommandType.StoredProcedure;
+                            cmd.Parameters.Add(new SqlParameter("@messageText", SqlDbType.NVarChar, -1) { Value = data, Direction = ParameterDirection.Input });
+                            var pResCode = new SqlParameter("@resCode", SqlDbType.VarChar, 10) { Direction = ParameterDirection.InputOutput, Value = "-1" };
+                            var pResult = new SqlParameter("@resultString", SqlDbType.NVarChar, -1) { Direction = ParameterDirection.Output };
+                            cmd.Parameters.Add(pResCode);
+                            cmd.Parameters.Add(pResult);
+                            cmd.ExecuteNonQuery();
+                            return (pResCode.Value?.ToString() ?? "-1", pResult.Value?.ToString() ?? "");
+                        }
+                    }
+                }
+                var connStr = Program.GetValueByKey(Program.cfg, "ConnectionString");
+                if (string.IsNullOrEmpty(connStr)) return ("-1", "");
+                using (var conn = new SqlConnection(connStr))
+                {
+                    conn.Open();
+                    using (var cmd = new SqlCommand("dbo.fixDataUpdateNew", conn))
+                    {
+                        cmd.CommandType = CommandType.StoredProcedure;
+                        cmd.Parameters.Add(new SqlParameter("@messageText", SqlDbType.NVarChar, -1) { Value = data, Direction = ParameterDirection.Input });
+                        var pResCode = new SqlParameter("@resCode", SqlDbType.VarChar, 10) { Direction = ParameterDirection.InputOutput, Value = "-1" };
+                        var pResult = new SqlParameter("@resultString", SqlDbType.NVarChar, -1) { Direction = ParameterDirection.Output };
+                        cmd.Parameters.Add(pResCode);
+                        cmd.Parameters.Add(pResult);
+                        cmd.ExecuteNonQuery();
+                        return (pResCode.Value?.ToString() ?? "-1", pResult.Value?.ToString() ?? "");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DailyLogger.Log($"[FixGetUpdateDataNew] {ex.Message}");
+                return ("-1", "");
+            }
+        }
+
+        /// <summary>
+        /// Запрос в АИС (Oracle) списка заявок, готовых для отправки на FIX; для каждой вызывается FixGetUpdateDataNew.
+        /// </summary>
+        private void HbGetOrdersForSend()
+        {
+            string broker = Program.GetValueByKey(Program.cfg, "Broker") ?? Program.GetValueByKey(Program.cfg, "ExchangeCode") ?? "";
+            if (!broker.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) && !broker.Equals("Tengri", StringComparison.OrdinalIgnoreCase))
+                return;
+            if (!OracleAisConnectionFactory.IsInitialized)
+                return;
+            string prefix = Program.GetValueByKey(Program.cfg, "DB_AIS_PREFIX") ?? "";
+            string func = Program.GetValueByKey(Program.cfg, "DB_AIS_FUNCTION") ?? "";
+            string bondMarket = Program.GetValueByKey(Program.cfg, "DB_AIS_BONDMARKET") ?? "0";
+            string isReal = Program.GetValueByKey(Program.cfg, "IsReal") ?? "0";
+            bool includeBoard = func.IndexOf("hb_getordersforsend_tngr", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (string.IsNullOrEmpty(func))
+                return;
+            string boardCol = includeBoard ? "\"board\":\"' || secboard || '\"," : "";
+            // Вызов Oracle table-функции (например hb_getordersforsend): выполняется при cmd.ExecuteReader() через "from table (prefix + func)"
+            string query =
+                "select '{\"objectType\":\"ais_order\"," +
+                "\"typeQuery\":\"update\"," +
+                "\"isReal\":\"" + isReal + "\"," +
+                "\"order_id\":\"' || order_id || '\"," +
+                "\"client_id\":\"' || client_id || '\"," +
+                "\"client_fio\":\"' || replace(client_fio,'\"','') || '\"," +
+                "\"cd_account\":\"' || cd_account || '\"," +
+                "\"order_number\":\"' || order_number || '\"," +
+                "\"order_date\":\"' || to_char(order_date,'YYYY-MM-DD') || '\"," +
+                "\"registered_date\":\"' || to_char(registered_date,'YYYY-MM-DD HH24:MI:SS') || '\"," +
+                "\"rejecting_order_id\":\"' || rejecting_order_id || '\"," +
+                "\"isin\":\"' || isin || '\"," +
+                "\"ticker\":\"' || ticker || '\"," +
+                boardCol +
+                "\"price\":\"' || price || '\"," +
+                "\"quantity\":\"' || quantity || '\"," +
+                "\"currency\":\"' || currency || '\"," +
+                "\"duration_date\":\"' || to_char(duration_date,'YYYY-MM-DD') || '\"," +
+                "\"bond_market_id\":\"' || bond_market_id || '\"," +
+                "\"order_type_id\":\"' || order_type_id || '\"," +
+                "\"order_kind_id\":\"' || order_kind_id || '\"" +
+                "}' JSON from table (" + prefix + func + ") where BOND_MARKET_ID = " + bondMarket + " and duration_date >= trunc(sysdate - (1/1440*360)) order by order_id";
+            try
+            {
+                using (var con = OracleAisConnectionFactory.GetConnection())
+                {
+                    con.Open();
+                    using (var cmd = con.CreateCommand())
+                    {
+                        cmd.CommandText = query;
+                        cmd.CommandType = CommandType.Text;
+                        using (var rdr = cmd.ExecuteReader())
+                        {
+                            while (rdr.Read())
+                            {
+                                string json = rdr.GetString(rdr.GetOrdinal("JSON"));
+                                if (string.IsNullOrEmpty(json)) continue;
+                                try
+                                {
+                                    var res = FixGetUpdateDataNew(json);
+                                    if (isDebug && res.resCode != "0")
+                                        Console.WriteLine($"[HbGetOrdersForSend] resCode={res.resCode} result={res.resultString}");
+                                }
+                                catch (Exception ex)
+                                {
+                                    if (isDebug) Console.WriteLine($"[HbGetOrdersForSend] {ex.Message}");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (isDebug) Console.WriteLine($"[HbGetOrdersForSend] Oracle: {ex.Message}");
+            }
+        }
+
+        private void GetOrdersForSendTimerTick(object state)
+        {
+            try { HbGetOrdersForSend(); } catch (Exception ex) { if (isDebug) Console.WriteLine($"[GetOrdersForSend] {ex.Message}"); }
+        }
 
         private void TimerTick(object state)
         {
@@ -456,6 +602,23 @@ GO
             {
             }
 
+            // Таймер запроса заявок из Oracle AIS (JYSAN / Tengri)
+            string broker = Program.GetValueByKey(Program.cfg, "Broker") ?? Program.GetValueByKey(Program.cfg, "ExchangeCode") ?? "";
+            if (_getOrdersForSendIntervalMilliseconds > 0 && (broker.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || broker.Equals("Tengri", StringComparison.OrdinalIgnoreCase)) && OracleAisConnectionFactory.IsInitialized)
+            {
+                try
+                {
+                    _timerGetOrdersForSend?.Dispose();
+                    _timerGetOrdersForSend = new Timer(
+                        callback: GetOrdersForSendTimerTick,
+                        state: null,
+                        dueTime: _getOrdersForSendIntervalMilliseconds,
+                        period: _getOrdersForSendIntervalMilliseconds
+                    );
+                }
+                catch (Exception ex) { if (isDebug) Console.WriteLine($"[OnLogon] GetOrdersForSend timer: {ex.Message}"); }
+            }
+
             //SendMarketDataRequest(sessionId);
             if (isDebug) Console.WriteLine("Logon - " + sessionId);
         }
@@ -464,6 +627,8 @@ GO
             if (isDebug) Console.WriteLine("Logout - " + sessionId);
             try
             {
+                _timerGetOrdersForSend?.Dispose();
+                _timerGetOrdersForSend = null;
                 // Когда отключились — остановить таймер
                 _timer?.Dispose();
                 _timer = null;
