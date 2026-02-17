@@ -3,6 +3,8 @@ using Newtonsoft.Json;
 using QuickFix;
 using QuickFix.Fields;
 using QuickFix.Logger;
+using QuickFix.Store;
+using QuickFix.Transport;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -65,11 +67,34 @@ namespace TradeClient
                     _getOrdersForSendIntervalMilliseconds = interval;
             }
             catch { }
+
+            // Build list of connect hosts for failover (SocketConnectHost, SocketConnectHost1, ...)
+            try
+            {
+                var def = _settings.Get();
+                for (int i = 0; i < 10; i++)
+                {
+                    string hostKey = i == 0 ? SessionSettings.SOCKET_CONNECT_HOST : SessionSettings.SOCKET_CONNECT_HOST + i;
+                    string portKey = i == 0 ? SessionSettings.SOCKET_CONNECT_PORT : SessionSettings.SOCKET_CONNECT_PORT + i;
+                    if (def.Has(hostKey) && def.Has(portKey))
+                    {
+                        _connectHosts.Add((def.GetString(hostKey), (int)def.GetLong(portKey)));
+                    }
+                    else if (i == 0)
+                        break;
+                }
+            }
+            catch { }
         }
         private Session? _session = null;
 
         // This variable is a kludge for developer test purposes.  Don't do this on a production application.
         public IInitiator? MyInitiator = null;
+
+        /// <summary>List of hosts/ports from SocketConnectHost, SocketConnectHost1, ... for failover.</summary>
+        private readonly List<(string Host, int Port)> _connectHosts = new();
+        private int _currentHostIndex = 0;
+        private volatile bool _isRestartingInitiator = false;
 
         #region IApplication interface overrides
         private readonly Dictionary<SessionID, string> _sessionPasswords = new();
@@ -91,12 +116,76 @@ namespace TradeClient
         }
         public void OnDisconnect()
         {
-            //this.MyInitiator.Stop();
+            if (_connectHosts.Count >= 2)
+            {
+                Task.Run(async () =>
+                {
+                    await Task.Delay(2000);
+                    RotateHostAndRestartInitiator();
+                });
+            }
         }
         static async Task ExitAfterDelayAsync(int milliseconds)
         {
             await Task.Delay(milliseconds);            
             Environment.Exit(0);
+        }
+
+        /// <summary>Replaces the first uncommented SocketConnectHost= and SocketConnectPort= in config content.</summary>
+        private static string ReplaceFirstUncommentedSocketConnect(string cfgContent, string host, int port)
+        {
+            var sb = new StringBuilder();
+            bool hostReplaced = false, portReplaced = false;
+            foreach (var line in cfgContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None))
+            {
+                string trimmed = line.TrimStart();
+                if (!hostReplaced && trimmed.StartsWith("SocketConnectHost=", StringComparison.OrdinalIgnoreCase))
+                {
+                    sb.Append("SocketConnectHost=").Append(host).AppendLine();
+                    hostReplaced = true;
+                }
+                else if (!portReplaced && trimmed.StartsWith("SocketConnectPort=", StringComparison.OrdinalIgnoreCase))
+                {
+                    sb.Append("SocketConnectPort=").Append(port).AppendLine();
+                    portReplaced = true;
+                }
+                else
+                    sb.Append(line).AppendLine();
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>Switch to next host and restart initiator (failover). Called after disconnect when multiple hosts are configured.</summary>
+        private void RotateHostAndRestartInitiator()
+        {
+            if (_connectHosts.Count < 2 || _isRestartingInitiator) return;
+            _isRestartingInitiator = true;
+            try
+            {
+                _currentHostIndex = (_currentHostIndex + 1) % _connectHosts.Count;
+                var (host, port) = _connectHosts[_currentHostIndex];
+                string modifiedCfg = ReplaceFirstUncommentedSocketConnect(Program.cfg, host, port);
+                SessionSettings newSettings = new SessionSettings(new StringReader(modifiedCfg));
+                IMessageStoreFactory storeFactory = new FileStoreFactory(newSettings);
+                ILogFactory logFactory = new FileLogFactory(newSettings);
+                var newInitiator = new SocketInitiator(this, storeFactory, newSettings, logFactory);
+
+                MyInitiator?.Stop();
+                Thread.Sleep(1500);
+
+                _settings = newSettings;
+                MyInitiator = newInitiator;
+                newInitiator.Start();
+                if (isDebug) Console.WriteLine($"[Failover] Restarted initiator on {host}:{port}");
+            }
+            catch (Exception ex)
+            {
+                if (isDebug) Console.WriteLine($"[Failover] RotateHostAndRestartInitiator failed: {ex.Message}");
+            }
+            finally
+            {
+                _isRestartingInitiator = false;
+            }
         }
 
         public static bool isStop(String connectionString)
