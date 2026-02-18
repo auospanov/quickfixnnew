@@ -1250,6 +1250,149 @@ GO
     public byte? IsReal { get; set; }
 }
 
+        /// <summary>
+        /// Build FixOrder from ExecutionReport and send to dbo.fixDataUpdateNew (analog of Java writeOrder).
+        /// </summary>
+        private void WriteOrder(QuickFix.Message m)
+        {
+            try
+            {
+                var order = new FixOrder();
+                char execType = m.IsSetField(150) ? m.GetChar(150) : '\0';
+
+                if (execType == '4' || execType == '6') // CANCELED, PENDING_CANCEL
+                {
+                    if (m.IsSetField(11)) order.ClOrdID = m.GetString(11);
+                    if (m.IsSetField(41)) order.OrigClOrdID = m.GetString(41);
+                }
+                else if (execType == '8') // REJECTED
+                {
+                    if (m.IsSetField(11)) order.ClOrdID = m.GetString(11);
+                }
+                else
+                {
+                    if (m.IsSetField(371)) order.ClOrdID = m.GetString(371);
+                    else if (m.IsSetField(11)) order.ClOrdID = m.GetString(11);
+                }
+
+                if (m.IsSetField(17)) order.Serial = m.GetString(17);
+                if (m.IsSetField(37)) order.OrderReferenceExchange = m.GetString(37);
+                if (m.IsSetField(58))
+                {
+                    string comment = m.GetString(58);
+                    if (Program.EXCH_CODE != null && Program.EXCH_CODE.Length >= 4 && Program.EXCH_CODE.Substring(0, 4).Equals("KASE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        try { order.Comment = Encoding.GetEncoding("windows-1251").GetString(Encoding.GetEncoding("windows-1252").GetBytes(comment)); }
+                        catch { order.Comment = comment; }
+                    }
+                    else order.Comment = comment;
+                }
+                if (m.IsSetField(55)) order.Instr = m.GetString(55);
+                if (m.IsSetField(1)) order.Acc = m.GetString(1);
+                try { if (m.IsSetField(448)) order.Investor = m.GetString(448); } catch { }
+                if (Program.EXCH_CODE != null && Program.EXCH_CODE.Length >= 4 && Program.EXCH_CODE.Substring(0, 4).Equals("KASE", StringComparison.OrdinalIgnoreCase) && m.IsSetField(6029))
+                    order.Currency = m.GetString(6029);
+                if (Program.EXCH_CODE != null && Program.EXCH_CODE.Equals("QUIK", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (m.IsSetField(15)) order.Currency = m.GetString(15);
+                    if (m.IsSetField(207)) order.Bloom_ExchCode = m.GetString(207);
+                    if (m.IsSetField(100)) order.SessionId = m.GetString(100);
+                }
+                if (Program.EXCH_CODE != null && Program.EXCH_CODE.Equals("Bloomberg", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (m.IsSetField(15)) order.Currency = m.GetString(15);
+                    if (m.IsSetField(207)) order.Bloom_ExchCode = m.GetString(207);
+                    if (m.IsSetField(76)) order.ContrBroker = m.GetString(76);
+                }
+                if (m.IsSetField(54)) order.Side = m.GetChar(54);
+                if (m.IsSetField(151)) order.LeavesQty = m.GetDecimal(151);
+                if (m.IsSetField(44)) order.Price = m.GetDecimal(44);
+                if (m.IsSetField(38)) order.Qty = m.GetDecimal(38);
+                if (m.IsSetField(31)) order.PriceDeal = m.GetDecimal(31);
+                if (m.IsSetField(32)) order.QtyDeal = (long)m.GetDecimal(32);
+                if (m.IsSetField(6)) order.PriceAvg = m.GetDecimal(6);
+                if (m.IsSetField(14)) order.QtyTotal = (long)m.GetDecimal(14);
+                if (m.IsSetField(432)) order.ExpireDate = m.GetString(432);
+                if (m.IsSetField(59)) order.TimeInForce = GetTimeInForceName(m.GetChar(59));
+                if (m.IsSetField(921)) order.CashQty = m.GetDecimal(921);
+                if (m.IsSetField(39)) order.Status = GetOrdStatusName(m.GetChar(39));
+                if (m.IsSetField(60))
+                {
+                    DateTime transTime = m.GetDateTime(60);
+                    if (Program.EXCH_CODE != null && (Program.EXCH_CODE.Length >= 4 && Program.EXCH_CODE.Substring(0, 4).Equals("KASE", StringComparison.OrdinalIgnoreCase) || Program.EXCH_CODE.Equals("AIX", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        order.CreationTime = transTime.ToLocalTime();
+                        order.ExecutionTimeStr = transTime.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+                    }
+                    else
+                    {
+                        order.CreationTime = transTime;
+                        order.ExecutionTimeStr = transTime.ToString("yyyy-MM-dd HH:mm:ss");
+                    }
+                }
+                try { if (m.IsSetField(64)) order.SettlementDateStr = m.GetString(64); } catch { }
+                if (m.IsSetField(10500)) order.WhoRemoved = m.GetString(10500);
+                if (m.IsSetField(10501))
+                {
+                    try
+                    {
+                        string raw = m.GetString(10501);
+                        if (DateTime.TryParseExact(raw, "yyyyMMdd-HH:mm:ss.fff", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed))
+                            order.WhenRemoved = parsed;
+                        else order.WhenRemoved = DateTime.Parse(raw);
+                    }
+                    catch { }
+                }
+                if (Program.EXCH_CODE != null && Program.EXCH_CODE.Length >= 4 && Program.EXCH_CODE.Substring(0, 4).Equals("KASE", StringComparison.OrdinalIgnoreCase) && m.IsSetField(336))
+                    order.SessionId = m.GetString(336);
+                if (m.IsSetField(529)) order.IsMMOrder = m.GetString(529) == "5" ? "1" : "0";
+                else order.IsMMOrder = "0";
+                try
+                {
+                    if (m.IsSetField(711))
+                    {
+                        int noUnderlyings = m.GetInt(711);
+                        for (int i = 1; i <= noUnderlyings; i++)
+                        {
+                            var grp = new QuickFix.Group(711, 311);
+                            m.GetGroup(i, grp);
+                            if (grp.IsSetField(311)) order.UnderlyingInstr = grp.GetString(311);
+                            if (grp.IsSetField(879)) order.UnderlyingInstrQty = (long)grp.GetDecimal(879);
+                        }
+                    }
+                }
+                catch { }
+                if (m.IsSetField(917)) order.CloseDate = m.GetDateOnly(917);
+                if (m.IsSetField(40)) order.Type = GetOrdTypeName(m.GetChar(40));
+                if (m.IsSetField(236)) order.Yield = m.GetDecimal(236);
+                if (m.IsSetField(5210)) order.RepoTax = m.GetDecimal(5210);
+                if (m.IsSetField(5211)) order.RiskLevel = m.GetString(5211);
+                if (m.IsSetField(99)) order.ClosePrice = m.GetDecimal(99);
+                if (m.IsSetField(880)) order.TrdMatchID = m.GetString(880);
+                try
+                {
+                    string raw = m.ToString().Replace('\u0001', ' ');
+                    int beg = raw.IndexOf(" 57=") + 4;
+                    int end = raw.IndexOf(" ", beg);
+                    if (beg > 3 && end > beg) order.UserName = raw.Substring(beg, end - beg).Trim();
+                }
+                catch { }
+
+                order.TypeQuery = "update";
+                order.ObjectType = "fix_order";
+                order.ExchCode = Program.EXCH_CODE ?? "";
+                order.IsReal = Program.ISREAL;
+
+                var settings = new JsonSerializerSettings { ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver() };
+                string json = JsonConvert.SerializeObject(order, settings);
+                var res = FixGetUpdateDataNew(json);
+                if (isDebug && res.resCode != "0") Console.WriteLine($"[WriteOrder] resCode={res.resCode} result={res.resultString}");
+            }
+            catch (Exception ex)
+            {
+                DailyLogger.Log($"[WriteOrder] {ex.Message}");
+            }
+        }
 
         #region MessageCracker handlers
     //public void OnMessage(QuickFix.FIX44.ExecutionReport m, SessionID s)
@@ -1462,6 +1605,11 @@ GO
             if (Program.GetValueByKey(Program.cfg,"IsWriteOrder") == "1")
             { 
                 if (isDebug) Console.WriteLine("Received ExecutionReport");
+                try
+                {
+                    WriteOrder(m);
+                }
+                catch { }
                 try { 
                      using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                     {
@@ -1646,6 +1794,7 @@ GO
             if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received ExecutionReport");
+                try { WriteOrder(m); } catch { }
                 try
                 {
                     if (Program.EXCH_CODE == "AIX_SP1")
@@ -1781,6 +1930,7 @@ GO
             if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received ExecutionReport");
+                try { WriteOrder(m); } catch { }
                 try
                 {
                     if (Program.EXCH_CODE == "ITS")
