@@ -49,7 +49,7 @@ namespace TradeClient
             };
             #if DEBUG
                 ADAPTER = "aix"; // aix "Exante"; //тут указываем экземпляр обаботчика, например kase kaseDropCopy kaseCurr kaseCurrDropCopy kaseSpot kaseSpotDropCopy its aix_SP1
-#endif
+            #endif
 
             try {ADAPTER = args[0]; }catch(Exception ex){}
             //try{ISREAL = byte.Parse(args[1]); }catch(Exception ex){}

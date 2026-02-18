@@ -1367,7 +1367,7 @@ GO
                 if (m.IsSetField(236)) order.Yield = m.GetDecimal(236);
                 if (m.IsSetField(5210)) order.RepoTax = m.GetDecimal(5210);
                 if (m.IsSetField(5211)) order.RiskLevel = m.GetString(5211);
-                if (m.IsSetField(99)) order.ClosePrice = m.GetDecimal(99);
+                if (m.IsSetField(99)) order.ClosePrice = (double)m.GetDecimal(99);
                 if (m.IsSetField(880)) order.TrdMatchID = m.GetString(880);
                 try
                 {
