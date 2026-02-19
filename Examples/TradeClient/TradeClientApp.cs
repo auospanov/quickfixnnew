@@ -1390,7 +1390,11 @@ GO
                 order.ExchCode = Program.EXCH_CODE ?? "";
                 order.IsReal = Program.ISREAL;
 
-                var settings = new JsonSerializerSettings { ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver() };
+                var settings = new JsonSerializerSettings 
+                {
+                    ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver(),
+                    NullValueHandling = NullValueHandling.Ignore
+                };
                 string json = JsonConvert.SerializeObject(order, settings);
                 var res = FixGetUpdateDataNew(json);
                 if (isDebug && res.resCode != "0") Console.WriteLine($"[WriteOrder] resCode={res.resCode} result={res.resultString}");

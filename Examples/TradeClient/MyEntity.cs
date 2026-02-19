@@ -68,19 +68,19 @@ namespace TradeClient
 		public string direction {get;set;}
 		public string type {get;set;}
 		[Precision(18, 6)]
-		public decimal leavesQty {get;set;}
+		public decimal? leavesQty {get;set;}
 		[Precision(18, 6)]
-		public decimal price {get;set;}
+		public decimal? price {get;set;}
 		[Precision(18, 6)]
-		public decimal quantity {get;set;}
+		public decimal? quantity {get;set;}
 		[Precision(18, 6)]
-		public decimal priceDeal {get;set;}
+		public decimal? priceDeal {get;set;}
 		[Precision(18, 6)]
-		public decimal quantityDeal {get;set;}
+		public decimal? quantityDeal {get;set;}
 		[Precision(18, 6)]
-		public decimal priceAvg {get;set;}
+		public decimal? priceAvg {get;set;}
 		[Precision(18, 6)]
-		public decimal quantityDealTotal {get;set;}
+		public decimal? quantityDealTotal {get;set;}
 		[Precision(18, 6)]
 		public decimal? volume_Cash {get;set;}
 		public string currency {get;set;}
