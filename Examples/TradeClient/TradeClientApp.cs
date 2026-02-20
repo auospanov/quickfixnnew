@@ -726,6 +726,7 @@ GO
             catch { }
         }
 
+
         public void FromAdmin(Message message, SessionID sessionId)
         {
             if (isDebug) Console.WriteLine("FromAdmin - " + message.ToString());
