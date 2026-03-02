@@ -3458,6 +3458,7 @@ GO
 
                     var rz = db.NewOrders.Where(r => string.IsNullOrEmpty(r.Processed_Status)
                         && r.ExchangeCode == Program.EXCH_CODE
+                        && r.IsMMOrder == Program.isMMorder
                         && ((r.ExpirationDate == null && r.TimeInForce != "DAY") || r.ExpirationDate >= DateTime.UtcNow.Date) //берем только те, которые еще не просрочились 
                         ).OrderBy(r=>r.Id).Take(portionSendOrder).ToList();
                     

@@ -30,6 +30,7 @@ namespace TradeClient
         public static string newPassword = string.Empty;
         public static bool isMustStartedAfterChangePassword = false;
         public static string checkNewOrdersIntervalMiliseconds = string.Empty;
+        public static byte isMMorder = 0;
         [STAThread]
         static void Main(string[] args)
         {
@@ -169,8 +170,10 @@ namespace TradeClient
 
                 try {EXCH_CODE = GetValueByKey(cfg,"ExchangeCode"); } catch(Exception ex){};
                 try{ISREAL = byte.Parse(GetValueByKey(cfg,"IsReal")); } catch(Exception ex){};
-
+                try { isMMorder = byte.Parse(GetValueByKey(cfg, "IsMMorder")); } catch (Exception ex) { };
                 
+
+
                 //QuickFix.SessionSettings settings = new QuickFix.SessionSettings((file);
 
                 //---------------------------------------------------------------------------------------
