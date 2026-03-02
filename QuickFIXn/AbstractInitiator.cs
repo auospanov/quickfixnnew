@@ -51,6 +51,16 @@ namespace QuickFix
             foreach (SessionID sessionId in _settings.GetSessions())
             {
                 SettingsDictionary dict = _settings.Get(sessionId);
+                // Читаем значение параметра DataDictionary
+                string ddPath = dict.GetString("DataDictionary");
+
+                Console.WriteLine("Используется словарь: " + ddPath);
+
+                //QuickFix.DataDictionary.DataDictionary dd = new QuickFix.DataDictionary.DataDictionary(ddPath);
+                //Console.WriteLine("Dictionary version: " + dd.ToString());
+
+
+
                 CreateSession(sessionId, dict);
             }
 

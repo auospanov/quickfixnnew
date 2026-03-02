@@ -170,6 +170,7 @@ namespace TradeClient
                 try {EXCH_CODE = GetValueByKey(cfg,"ExchangeCode"); } catch(Exception ex){};
                 try{ISREAL = byte.Parse(GetValueByKey(cfg,"IsReal")); } catch(Exception ex){};
 
+                
                 //QuickFix.SessionSettings settings = new QuickFix.SessionSettings((file);
 
                 //---------------------------------------------------------------------------------------
