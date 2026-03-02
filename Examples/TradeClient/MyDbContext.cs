@@ -19,6 +19,7 @@ namespace TradeClient
         public DbSet<settingsTP> settingsTP { get; set; }
         public DbSet<NewOrders> NewOrders { get; set; }
         public DbSet<tradeCapture> TradeCapture { get; set; }
+        public DbSet<instruments> instruments { get; set; }
         
         // Конструктор для использования с DbContextOptions (рекомендуемый подход)
         public MyDbContext(DbContextOptions<MyDbContext> options) : base(options)

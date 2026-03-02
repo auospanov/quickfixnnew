@@ -117,5 +117,20 @@ namespace TradeClient
         public string? CommType { get; set; }
     }
 
+    public class instruments
+    {
+        public int ID { get; set; }
+        public byte? isReal { get; set; }
+        public string? exchangeCode { get; set; }
+        public string? ticker { get; set; }
+        public string? currencyCode { get; set; }
+        public decimal? TradeRefPrice { get; set; }
+        public string? TradingSessionSubID { get; set; }
+        public string? TradSesStatus { get; set; }
+        public string? TradSesStartTime { get; set; }
+        public string? TradText { get; set; }
+       
+
+    }
 
 }

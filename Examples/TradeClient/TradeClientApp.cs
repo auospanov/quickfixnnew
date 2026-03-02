@@ -26,6 +26,8 @@ using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 using static System.Collections.Specialized.BitVector32;
 using ApplicationException = System.ApplicationException;
 using Exception = System.Exception;
+
+
 namespace TradeClient
 {
     public class TradeClientApp : QuickFix.MessageCracker, QuickFix.IApplication
@@ -652,10 +654,20 @@ GO
         public void OnLogon(SessionID sessionId)
         {
             //запрос справочника инструментов
-            if (Program.GetValueByKey(Program.cfg, "IsInstrRequest") == "1")
+            if (Program.GetValueByKey(Program.cfg, "IsInstrRequest") == "1" && Program.EXCH_CODE=="AIX")
                 try
                 {
                     //
+                    string guid = Guid.NewGuid().ToString();
+                    // Оставляем только цифры
+                    string digits = new string(guid.Where(char.IsDigit).ToArray());
+                    digits = digits.Substring(0, 3);
+
+                    var request = new QuickFix.FIX50SP2.SecurityDefinitionRequest(
+                        new SecurityReqID(digits),
+                        new SecurityRequestType(0)
+                        );
+                    Session.SendToTarget(request);
                 }
                 catch (Exception e)
                 {
@@ -2556,6 +2568,32 @@ GO
             {
                 Console.WriteLine("Ошибка TradeCaptureReport - " + ex.Message);
             }
+        }
+        
+        public void OnMessage(QuickFix.FIX50SP2.SecurityDefinition sd, SessionID s)
+        {
+            try
+            {
+                using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                {
+                    var db = wrapper.Context;
+                    var instr = new instruments();
+                    instr.isReal = 1;
+                    instr.exchangeCode = Program.EXCH_CODE;
+                    instr.ticker = sd.Symbol.Value;
+                    instr.currencyCode = sd.Currency.Value;
+                    instr.TradeRefPrice = sd.CapPrice.Value;
+
+                    wrapper.Context.instruments.Add(instr);
+                    wrapper.Context.SaveChanges();
+
+                }
+            }
+            catch (Exception ex)
+            {
+
+            }
+
         }
         
         private string GetSideName(char side)
