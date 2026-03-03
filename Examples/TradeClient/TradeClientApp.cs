@@ -653,24 +653,27 @@ GO
 
         public void OnLogon(SessionID sessionId)
         {
-            //запрос справочника инструментов
-            if (Program.GetValueByKey(Program.cfg, "IsInstrRequest") == "1" && Program.EXCH_CODE=="AIX")
+            // Подписка на Reference Data (AIX): один запрос — полный snapshot всех инструментов (FIX RefData AIX v2.0)
+            // Application Message Request (BW): RefApplID=R, ApplEndSeqNum=0. Подписка только 1 раз за сессию.
+            if (Program.GetValueByKey(Program.cfg, "IsInstrRequest") == "1" && Program.EXCH_CODE == "AIX")
                 try
                 {
-                    //
-                    string guid = Guid.NewGuid().ToString();
-                    // Оставляем только цифры
-                    string digits = new string(guid.Where(char.IsDigit).ToArray());
-                    digits = digits.Substring(0, 3);
-
-                    var request = new QuickFix.FIX50SP2.SecurityDefinitionRequest(
-                        new SecurityReqID(digits),
-                        new SecurityRequestType(0)
-                        );
-                    Session.SendToTarget(request);
+                    string applReqId = Guid.NewGuid().ToString("N").Substring(0, 12);
+                    var request = new QuickFix.FIX50SP2.ApplicationMessageRequest(
+                        new ApplReqID(applReqId),
+                        new ApplReqType(1)  // 1 = SUBSCRIPTION_TO_THE_SPECIFIED_APPLICATIONS
+                    );
+                    var applGroup = new QuickFix.FIX50SP2.ApplicationMessageRequest.NoApplIDsGroup();
+                    applGroup.SetField(new RefApplID("R"));           // R = Reference Data (все инструменты)
+                    applGroup.SetField(new ApplBegSeqNum(0));
+                    applGroup.SetField(new ApplEndSeqNum(0));        // 0 = подписка включена (по спецификации AIX)
+                    request.SetField(new NoApplIDs(1));
+                    request.AddGroup(applGroup);
+                    SendMessage(request);
                 }
                 catch (Exception e)
                 {
+                    if (isDebug) Console.WriteLine($"[OnLogon] AIX Reference Data subscription: {e.Message}");
                 }
 
             //запрос стутуса торгов
@@ -2574,28 +2577,46 @@ GO
         {
             try
             {
+                if (!sd.IsSetSymbol())
+                    return;
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
-                    var db = wrapper.Context;
                     var instr = new instruments();
                     instr.isReal = 1;
                     instr.exchangeCode = Program.EXCH_CODE;
                     instr.ticker = sd.Symbol.Value;
-                    instr.currencyCode = sd.Currency.Value;
-                    instr.TradeRefPrice = sd.CapPrice.Value;
+                    instr.currencyCode = sd.IsSetCurrency() ? sd.Currency.Value : null;
+                    instr.TradeRefPrice = sd.IsSetCapPrice() ? sd.CapPrice.Value : default;
 
                     wrapper.Context.instruments.Add(instr);
                     wrapper.Context.SaveChanges();
-
                 }
             }
             catch (Exception ex)
             {
-
+                if (isDebug) Console.WriteLine($"[SecurityDefinition] {ex.Message}");
             }
-
         }
-        
+
+        /// <summary>Подтверждение подписки на Reference Data (AIX). После Ack биржа шлёт snapshot (Security Definition по каждому инструменту).</summary>
+        public void OnMessage(QuickFix.FIX50SP2.ApplicationMessageRequestAck ack, SessionID s)
+        {
+            if (!isDebug || Program.EXCH_CODE != "AIX") return;
+            try
+            {
+                int groupCount = ack.GetInt(QuickFix.Fields.Tags.NoApplIDs);
+                for (int i = 1; i <= groupCount; i++)
+                {
+                    var grp = new QuickFix.FIX50SP2.ApplicationMessageRequestAck.NoApplIDsGroup();
+                    ack.GetGroup(i, grp);
+                    string refApplId = grp.IsSetRefApplID() ? grp.RefApplID.Value : "";
+                    string refApplLastSeqNum = grp.IsSetRefApplLastSeqNum() ? grp.RefApplLastSeqNum.Value.ToString() : "";
+                    Console.WriteLine($"[AIX RefData] ApplicationMessageRequestAck: RefApplID={refApplId}, RefApplLastSeqNum={refApplLastSeqNum}");
+                }
+            }
+            catch (Exception ex) { Console.WriteLine($"[ApplicationMessageRequestAck] {ex.Message}"); }
+        }
+
         private string GetSideName(char side)
 {
     return side switch
