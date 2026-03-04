@@ -45,19 +45,12 @@ public class OrderSender
                     flushToDiskInterval: TimeSpan.FromSeconds(5))
                 .CreateLogger();
 
-
-
-
-            // Пример записи
             Log.Information(message);
             //Log.Warning("Это предупреждение");
             //Log.Error("Произошла ошибка: {Error}", "Sample error");
 
             // Завершение работы логгера
             Log.CloseAndFlush();
-
-            //Console.WriteLine("Логи записаны в файл.");
-
 
         }
         /*
