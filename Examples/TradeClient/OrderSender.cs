@@ -18,7 +18,12 @@ public class OrderSender
     public static void slWriter(string message, [System.Runtime.CompilerServices.CallerMemberName] string caller = "")
     {
             string basePath = AppDomain.CurrentDomain.BaseDirectory;
-            string logDir = Path.Combine(basePath, "logs");
+            //string logDir = Path.Combine(basePath, "logs");
+            var now = DateTime.Now;
+            var logDir = Path.Combine("logs",
+                                 now.Year.ToString(),
+                                 now.Month.ToString("D2"),
+                                 now.Day.ToString("D2"));
             string logPath = Path.Combine(logDir, $"{DateTime.Now:yyyy-MM-dd}.log");
 
             // Создаём директорию, если её нет
@@ -27,16 +32,21 @@ public class OrderSender
                 Directory.CreateDirectory(logDir);
             }
 
-            // Настройка логгера
+           
+
+            Directory.CreateDirectory(logDir);
+
+            var logFile = Path.Combine(logDir, $"log-{now.Hour:D2}.txt");
+
             Log.Logger = new LoggerConfiguration()
                 .WriteTo.File(
-                    path: logPath,          // путь к файлу
-                    rollingInterval: RollingInterval.Day, // ротация по дням
-                    retainedFileCountLimit: 7,     // хранить только 7 последних файлов
-                    buffered: true,                // буферизация для скорости
-                    flushToDiskInterval: TimeSpan.FromSeconds(5) // сброс каждые 5 секунд
-                )
+                    path: logFile,
+                    buffered: true,
+                    flushToDiskInterval: TimeSpan.FromSeconds(5))
                 .CreateLogger();
+
+
+
 
             // Пример записи
             Log.Information(message);
@@ -50,6 +60,7 @@ public class OrderSender
 
 
         }
+        /*
         public static void writeLog(string message, [System.Runtime.CompilerServices.CallerMemberName] string caller = "")
 {
     try
@@ -104,7 +115,7 @@ public class OrderSender
         // можно добавить логирование ошибок верхнего уровня
     }
 }
-
+        */
     public static void SendOrdersAsyncFireAndForget(string jsonOrders)
     {
         _ = Task.Run(async () =>

@@ -1198,7 +1198,8 @@ GO
                 }
                 catch (Exception e)
                 {
-                    OrderSender.writeLog("Exception oneRec = " + e.Message);
+                    //OrderSender.writeLog("Exception oneRec = " + e.Message);
+                    OrderSender.slWriter("Exception oneRec = " + e.Message);
                 }
 
             }

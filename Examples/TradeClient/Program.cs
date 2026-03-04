@@ -34,7 +34,8 @@ namespace TradeClient
         [STAThread]
         static void Main(string[] args)
         {
-            OrderSender.writeLog("test");
+            //OrderSender.writeLog("test");
+            OrderSender.slWriter("test");
             AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
             {
                 var ex = args.ExceptionObject as Exception;
