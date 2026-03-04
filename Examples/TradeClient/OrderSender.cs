@@ -7,14 +7,50 @@ using System.Threading.Tasks;
 namespace TradeClient
 {
 using RestSharp;
-using System;
+    using Serilog;
+    using System;
     using System.IO;
     using System.Threading.Tasks;
 
 public class OrderSender
 {
     //private const string ApiUrl = "https://api.stdi.kz/v3/kaseOrders/set";
-   public static void writeLog(string message, [System.Runtime.CompilerServices.CallerMemberName] string caller = "")
+    public static void slWriter(string message, [System.Runtime.CompilerServices.CallerMemberName] string caller = "")
+    {
+            string basePath = AppDomain.CurrentDomain.BaseDirectory;
+            string logDir = Path.Combine(basePath, "logs");
+            string logPath = Path.Combine(logDir, $"{DateTime.Now:yyyy-MM-dd}.log");
+
+            // Создаём директорию, если её нет
+            if (!Directory.Exists(logDir))
+            {
+                Directory.CreateDirectory(logDir);
+            }
+
+            // Настройка логгера
+            Log.Logger = new LoggerConfiguration()
+                .WriteTo.File(
+                    path: logPath,          // путь к файлу
+                    rollingInterval: RollingInterval.Day, // ротация по дням
+                    retainedFileCountLimit: 7,     // хранить только 7 последних файлов
+                    buffered: true,                // буферизация для скорости
+                    flushToDiskInterval: TimeSpan.FromSeconds(5) // сброс каждые 5 секунд
+                )
+                .CreateLogger();
+
+            // Пример записи
+            Log.Information(message);
+            //Log.Warning("Это предупреждение");
+            //Log.Error("Произошла ошибка: {Error}", "Sample error");
+
+            // Завершение работы логгера
+            Log.CloseAndFlush();
+
+            //Console.WriteLine("Логи записаны в файл.");
+
+
+        }
+        public static void writeLog(string message, [System.Runtime.CompilerServices.CallerMemberName] string caller = "")
 {
     try
     {
@@ -84,13 +120,15 @@ public class OrderSender
                     request.AddHeader("Authorization", Program.urlServiceAuthorization);
                 
                 var response = await client.ExecuteAsync(request);
-                writeLog("request jsonOrders = " + jsonOrders + $";\n Ответ API: {response.StatusCode} — {response.Content}");
+                //writeLog("request jsonOrders = " + jsonOrders + $";\n Ответ API: {response.StatusCode} — {response.Content}");
+                slWriter("request jsonOrders = " + jsonOrders + $";\n Ответ API: {response.StatusCode} — {response.Content}");
                 // Можно залогировать при необходимости
                 Console.WriteLine($"[DEBUG] Ответ API: {response.StatusCode} — {response.Content}");
             }
             catch (Exception ex)
             {
-                writeLog("request jsonOrders = " + jsonOrders + "; Exception = " + ex.Message);
+                //writeLog("request jsonOrders = " + jsonOrders + "; Exception = " + ex.Message);
+                slWriter("request jsonOrders = " + jsonOrders + "; Exception = " + ex.Message);
                 Console.WriteLine($"[ERROR] Ошибка при отправке запроса: {ex.Message}");
             }
         });
