@@ -1612,6 +1612,15 @@ GO
     //        FixOrdersList.Add(order); // если временная коллекция
     //    }
     //}
+        public void OnMessage(QuickFix.FIX50SP2.MarketDefinition m, SessionID s)
+        {
+
+        }
+        public void OnMessage(QuickFix.FIX50SP2.SecurityDefinitionRequest m, SessionID s)
+        {
+
+        }
+
         public void OnMessage(QuickFix.FIX44.Heartbeat m, SessionID s)
         {
             try { 
