@@ -22,6 +22,7 @@ namespace TradeClient
         public static string ADAPTER = ""; 
         public static byte ISREAL = 0;
         public static string EXCH_CODE = ""; //к какой бирже относится
+        public static string BROKER = ""; //к какой бирже относится
         public static string urlService = "";
         public static string urlServiceAuthorization = "";
         //public static string changePasswordDay = "";
@@ -146,9 +147,8 @@ namespace TradeClient
                     DbContextFactory.DisposeStatic();
                     Environment.Exit(0);
                 }
-                // Пул подключений к Oracle AIS (для JYSAN/Tengri — заявки для отправки на FIX)
-                string broker = GetValueByKey(cfg, "Broker") ?? GetValueByKey(cfg, "ExchangeCode") ?? "";
-                if (broker.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || broker.Equals("Tengri", StringComparison.OrdinalIgnoreCase))
+                // Пул подключений к Oracle AIS (для JYSAN/Tengri — заявки для отправки на FIX)                
+                if (BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase))
                 {
                     string oracleAisCs = OracleAisConnectionFactory.BuildConnectionString(cfg);
                     if (!string.IsNullOrEmpty(oracleAisCs))
@@ -169,7 +169,8 @@ namespace TradeClient
                     }
                 }
 
-                try {EXCH_CODE = GetValueByKey(cfg,"ExchangeCode"); } catch(Exception ex){};
+                try { BROKER = GetValueByKey(cfg, "Broker"); } catch(Exception ex){};
+                try { EXCH_CODE = GetValueByKey(cfg,"ExchangeCode"); } catch(Exception ex){};
                 try{ISREAL = byte.Parse(GetValueByKey(cfg,"IsReal")); } catch(Exception ex){};
                 try { isMMorder = byte.Parse(GetValueByKey(cfg, "IsMMorder")); } catch (Exception ex) { };
                 
