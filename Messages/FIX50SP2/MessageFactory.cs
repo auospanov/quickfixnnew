@@ -51,6 +51,7 @@ public class MessageFactory : IMessageFactory
             QuickFix.FIX50SP2.MassQuoteAcknowledgement.MsgType => new QuickFix.FIX50SP2.MassQuoteAcknowledgement(),
             QuickFix.FIX50SP2.SecurityDefinitionRequest.MsgType => new QuickFix.FIX50SP2.SecurityDefinitionRequest(),
             QuickFix.FIX50SP2.SecurityDefinition.MsgType => new QuickFix.FIX50SP2.SecurityDefinition(),
+            QuickFix.FIX50SP2.PriceReference.MsgType => new QuickFix.FIX50SP2.PriceReference(),
             QuickFix.FIX50SP2.SecurityStatusRequest.MsgType => new QuickFix.FIX50SP2.SecurityStatusRequest(),
             QuickFix.FIX50SP2.SecurityStatus.MsgType => new QuickFix.FIX50SP2.SecurityStatus(),
             QuickFix.FIX50SP2.TradingSessionStatusRequest.MsgType => new QuickFix.FIX50SP2.TradingSessionStatusRequest(),

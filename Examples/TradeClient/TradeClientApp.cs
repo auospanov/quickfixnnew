@@ -491,7 +491,7 @@ GO
                     }
                     catch (Exception err)
                     {
-                        string mes = err.Message;
+                        string mes = err.StackTrace;
                         Console.Write($"Ошибка записи в базу данных пачки {mes}");
                         // При ошибке записи в БД сохраняем данные в файл резервной копии
                         try
@@ -2609,6 +2609,57 @@ GO
                     wrapper.Context.instruments.Add(instr);
                     wrapper.Context.SaveChanges();
                 }
+            }
+            catch (Exception ex)
+            {
+                if (isDebug) Console.WriteLine($"[SecurityDefinition] {ex.Message}");
+            }
+        }
+
+
+        public void OnMessage(QuickFix.FIX50SP2.SecurityStatus ss, SessionID s)
+        {
+            try
+            {
+                //if (!sd.IsSetSymbol())
+                //    return;
+                //using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                //{
+                //    var instr = new instruments();
+                //    instr.isReal = 1;
+                //    instr.exchangeCode = Program.EXCH_CODE;
+                //    instr.ticker = sd.Symbol.Value;
+                //    instr.currencyCode = sd.IsSetCurrency() ? sd.Currency.Value : null;
+                //    instr.TradeRefPrice = sd.IsSetCapPrice() ? sd.CapPrice.Value : default;
+
+                //    wrapper.Context.instruments.Add(instr);
+                //    wrapper.Context.SaveChanges();
+                //}
+            }
+            catch (Exception ex)
+            {
+                if (isDebug) Console.WriteLine($"[SecurityDefinition] {ex.Message}");
+            }
+        }
+
+        public void OnMessage(QuickFix.FIX50SP2.PriceReference pr, SessionID s)
+        {
+            try
+            {
+                //if (!sd.IsSetSymbol())
+                //    return;
+                //using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                //{
+                //    var instr = new instruments();
+                //    instr.isReal = 1;
+                //    instr.exchangeCode = Program.EXCH_CODE;
+                //    instr.ticker = sd.Symbol.Value;
+                //    instr.currencyCode = sd.IsSetCurrency() ? sd.Currency.Value : null;
+                //    instr.TradeRefPrice = sd.IsSetCapPrice() ? sd.CapPrice.Value : default;
+
+                //    wrapper.Context.instruments.Add(instr);
+                //    wrapper.Context.SaveChanges();
+                //}
             }
             catch (Exception ex)
             {
