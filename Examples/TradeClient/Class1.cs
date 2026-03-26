@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TradeClient
 {
-    public enum TradingSessionID
+    public enum TradingSessionID1
     {
         CloseCrossing = 9,
         ContinuousMatching = 6,

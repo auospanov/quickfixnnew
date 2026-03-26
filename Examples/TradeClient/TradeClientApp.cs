@@ -680,7 +680,11 @@ GO
             if (Program.GetValueByKey(Program.cfg, "IsTradeStatusRequest") == "1")
                 try
                 {
-                    //
+                    var request = new QuickFix.FIX50SP2.SecurityStatusRequest();
+                    request.SetField(new SubscriptionRequestType('0'));
+                    request.Header.GetString(Tags.BeginString);
+                    SendMessage(request);
+
                 }
                 catch (Exception e)
                 {
@@ -2618,9 +2622,9 @@ GO
 
         public static string GetSessionName(int code)
         {
-            if (Enum.IsDefined(typeof(TradingSessionID), code))
+            if (Enum.IsDefined(typeof(TradingSessionID1), code))
             {
-                return ((TradingSessionID)code).ToString();
+                return ((TradingSessionID1)code).ToString();
             }
             return "Unknown";
         }
@@ -2629,8 +2633,7 @@ GO
         {
             try
             {
-                //if (!sd.IsSetSymbol())
-                //    return;
+                
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var instr = new instruments();
