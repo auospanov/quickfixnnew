@@ -2616,6 +2616,14 @@ GO
             }
         }
 
+        public static string GetSessionName(int code)
+        {
+            if (Enum.IsDefined(typeof(TradingSessionID), code))
+            {
+                return ((TradingSessionID)code).ToString();
+            }
+            return "Unknown";
+        }
 
         public void OnMessage(QuickFix.FIX50SP2.SecurityStatus ss, SessionID s)
         {
@@ -2623,18 +2631,21 @@ GO
             {
                 //if (!sd.IsSetSymbol())
                 //    return;
-                //using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                //{
-                //    var instr = new instruments();
-                //    instr.isReal = 1;
-                //    instr.exchangeCode = Program.EXCH_CODE;
-                //    instr.ticker = sd.Symbol.Value;
-                //    instr.currencyCode = sd.IsSetCurrency() ? sd.Currency.Value : null;
-                //    instr.TradeRefPrice = sd.IsSetCapPrice() ? sd.CapPrice.Value : default;
+                using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                {
+                    var instr = new instruments();
+                    instr.isReal = 1;
+                    instr.exchangeCode = Program.EXCH_CODE;
+                    instr.ticker = ss.Symbol.Value;
+                    //instr.currencyCode = sd.IsSetCurrency() ? sd.Currency.Value : null;
+                    //instr.TradeRefPrice = sd.IsSetCapPrice() ? sd.CapPrice.Value : default;
+                    instr.TradSesStatus = ss.TradingSessionID.ToString();
+                    string status = GetSessionName(int.Parse(ss.TradingSessionID.Value.ToString()));
+                    instr.TradText = status;
 
-                //    wrapper.Context.instruments.Add(instr);
-                //    wrapper.Context.SaveChanges();
-                //}
+                    wrapper.Context.instruments.Add(instr);
+                    wrapper.Context.SaveChanges();
+                }
             }
             catch (Exception ex)
             {
