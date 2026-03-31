@@ -129,8 +129,23 @@ namespace TradeClient
         public string? TradSesStatus { get; set; }
         public string? TradSesStartTime { get; set; }
         public string? TradText { get; set; }
-       
+        public string? trading_ticker { get; set; }
+        public string? isin { get; set; }
 
+        public string? currency { get; set; }
+        public string? instrument { get; set; }
+        public string? securityName { get; set; }
+
+        public string? issuer { get; set; }
+
+        public decimal? accrued_interest { get; set; }
+        public DateTime? maturityDate { get; set; }
+
+        public decimal? faceValue { get; set; }
+        public int? yearBasis {  get; set; }
+        public decimal? couponRate { get; set; }
+        public decimal? priceMultiplier { get; set; }
+        public decimal? couponFreq { get; set; }
     }
 
 }

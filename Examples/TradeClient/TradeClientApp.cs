@@ -680,10 +680,11 @@ GO
             if (Program.GetValueByKey(Program.cfg, "IsTradeStatusRequest") == "1")
                 try
                 {
-                    var request = new QuickFix.FIX50SP2.SecurityStatusRequest();
-                    request.SetField(new SubscriptionRequestType('0'));
-                    request.Header.GetString(Tags.BeginString);
-                    SendMessage(request);
+                    //var request = new QuickFix.FIX50SP2.SecurityStatusRequest();
+                    //request.SetField(new SubscriptionRequestType('0'));
+                    //request.SetField(new SecurityStatusReqID(Guid.NewGuid().ToString()));
+                    //request.Header.GetString(Tags.BeginString);
+                    //SendMessage(request);
 
                 }
                 catch (Exception e)
@@ -2628,12 +2629,11 @@ GO
             }
             return "Unknown";
         }
-
+        
         public void OnMessage(QuickFix.FIX50SP2.SecurityStatus ss, SessionID s)
         {
             try
             {
-                
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var instr = new instruments();
@@ -2645,7 +2645,7 @@ GO
                     instr.TradSesStatus = ss.TradingSessionID.ToString();
                     string status = GetSessionName(int.Parse(ss.TradingSessionID.Value.ToString()));
                     instr.TradText = status;
-
+        
                     wrapper.Context.instruments.Add(instr);
                     wrapper.Context.SaveChanges();
                 }
