@@ -1656,4 +1656,6 @@ public static class Tags
     public const int RelationshipRiskEncodedSecurityDesc = 1619;
     public const int RiskEncodedSecurityDescLen = 1620;
     public const int RiskEncodedSecurityDesc = 1621;
+    public const int CouponFrequencyPeriod = 1948;
+    public const int NoCouponBlock = 20041;
 }

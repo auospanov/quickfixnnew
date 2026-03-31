@@ -142,7 +142,7 @@ namespace TradeClient
         public DateTime? maturityDate { get; set; }
 
         public decimal? faceValue { get; set; }
-        public int? yearBasis {  get; set; }
+        public string? yearBasis {  get; set; }
         public decimal? couponRate { get; set; }
         public decimal? priceMultiplier { get; set; }
         public decimal? couponFreq { get; set; }

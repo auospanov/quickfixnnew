@@ -2610,6 +2610,55 @@ GO
                     instr.ticker = sd.Symbol.Value;
                     instr.currencyCode = sd.IsSetCurrency() ? sd.Currency.Value : null;
                     instr.TradeRefPrice = sd.IsSetCapPrice() ? sd.CapPrice.Value : default;
+                    
+                    if (sd.Currency != null) instr.currency = sd.Currency.Value;
+
+                    
+
+                    // есть ли группа 1310
+                    if(sd.IsSetField(Tags.NoMarketSegments))
+                    {
+                        //кол-во записей в группе
+                        int cntRec = sd.GetInt(Tags.NoMarketSegments);
+                        // получаем первую группу
+                        Group gr1 = sd.GetGroup(1, Tags.NoMarketSegments);
+                        //есть ли в группе MarketSegmentID (1300)
+                        if(gr1.IsSetField(Tags.MarketSegmentID))
+                        {
+                            instr.instrument = gr1.GetString(Tags.MarketSegmentID);
+                        }
+                    }
+                    //поля Issuer нет
+                    //есть ли поле AccuredInterestAmt
+                    if(sd.IsSetField(159))
+                    {
+                        instr.accrued_interest = sd.GetDecimal(159);
+                    }
+                    if (sd.IsSetField(Tags.MaturityDate)) instr.maturityDate = DateTime.Parse(sd.MaturityDate.Value);
+                    //FaceValue
+                    if (sd.IsSetField(21074)) instr.faceValue = decimal.Parse(sd.GetString(21074));
+                    //CouponDayCount
+                    if (sd.IsSetField(1950)) instr.yearBasis = sd.GetString(1950);
+
+                    // есть ли группа NoCouponBlock
+                    if(sd.IsSetField(Tags.NoCouponBlock))
+                    {
+                        //кол-во записей в группе
+                        int cntRec = sd.GetInt(Tags.NoCouponBlock);
+                        // получаем первую группу
+                        Group gr1 = sd.GetGroup(1, Tags.NoCouponBlock);
+                        //есть ли в группе CouponRate (223)
+                        if (gr1.IsSetField(Tags.CouponRate))
+                        {
+                            instr.couponRate = gr1.GetDecimal(Tags.CouponRate);
+                        }
+                    }
+                    //priceMultiplier - нет такого тега
+                    if(sd.IsSetField(Tags.CouponFrequencyPeriod))
+                    {
+                        instr.couponFreq = sd.GetDecimal(Tags.CouponFrequencyPeriod);
+                    }
+
 
                     wrapper.Context.instruments.Add(instr);
                     wrapper.Context.SaveChanges();
