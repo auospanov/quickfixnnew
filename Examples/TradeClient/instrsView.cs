@@ -138,6 +138,7 @@ namespace TradeClient
 
         public string? issuer { get; set; }
 
+        [Column(TypeName = "decimal(30,10)")]
         public decimal? accrued_interest { get; set; }
         public DateTime? maturityDate { get; set; }
 

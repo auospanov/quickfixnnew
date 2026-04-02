@@ -2613,10 +2613,37 @@ GO
                     
                     if (sd.Currency != null) instr.currency = sd.Currency.Value;
 
-                    
+                    if (sd.SecurityDesc != null) instr.securityName = sd.SecurityDesc.Value;
+
+                    if (sd.IsSetField(Tags.NoSecurityAltID))
+                    {
+                        int groupCount = sd.GetInt(Tags.NoSecurityAltID);
+
+                        for (int i = 1; i <= groupCount; i++)
+                        {
+                            // В FIX50SP2 группа называется NoSecurityAltIDGroup
+                            var group = new QuickFix.FIX50SP2.SecurityDefinition.NoSecurityAltIDGroup();
+                            sd.GetGroup(i, group);
+
+                            if (group.IsSetField(Tags.SecurityAltID) && group.IsSetField(Tags.SecurityAltIDSource))
+                            {
+                                string altId = group.GetString(Tags.SecurityAltID);
+                                string altIdSource = group.GetString(Tags.SecurityAltIDSource);
+
+                                // ISIN определяется как Source = "4"
+                                if (altIdSource == "4")
+                                {
+                                    instr.isin = altId;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+
 
                     // есть ли группа 1310
-                    if(sd.IsSetField(Tags.NoMarketSegments))
+                    if (sd.IsSetField(Tags.NoMarketSegments))
                     {
                         //кол-во записей в группе
                         int cntRec = sd.GetInt(Tags.NoMarketSegments);
@@ -2634,9 +2661,46 @@ GO
                     {
                         instr.accrued_interest = sd.GetDecimal(159);
                     }
-                    if (sd.IsSetField(Tags.MaturityDate)) instr.maturityDate = DateTime.Parse(sd.MaturityDate.Value);
+                    
+                    //if (sd.IsSetField(Tags.MaturityDate)) instr.maturityDate = DateTime.Parse(sd.MaturityDate.Value);
+                    if (sd.IsSetField(Tags.MaturityDate))
+                    {
+                        var maturityDateStr = sd.MaturityDate.Value;
+                        if (DateTime.TryParseExact(
+                                maturityDateStr,
+                                "yyyyMMdd",                // формат FIX для даты
+                                CultureInfo.InvariantCulture,
+                                DateTimeStyles.None,
+                                out var maturityDate))
+                        {
+                            instr.maturityDate = maturityDate;
+                        }
+                        else
+                        {
+                            // обработка ошибки парсинга
+                            // например, логирование или исключение
+                        }
+                    }
+
                     //FaceValue
-                    if (sd.IsSetField(21074)) instr.faceValue = decimal.Parse(sd.GetString(21074));
+                    //if (sd.IsSetField(21074)) instr.faceValue = decimal.Parse(sd.GetString(21074));
+                    if (sd.IsSetField(21074))
+                    {
+                        var faceValueStr = sd.GetString(21074);
+                        if (decimal.TryParse(
+                                faceValueStr,
+                                NumberStyles.Any,
+                                CultureInfo.InvariantCulture,
+                                out var faceValue))
+                        {
+                            instr.faceValue = faceValue;
+                        }
+                        else
+                        {
+                            // обработка ошибки: логирование, исключение и т.д.
+                        }
+                    }
+
                     //CouponDayCount
                     if (sd.IsSetField(1950)) instr.yearBasis = sd.GetString(1950);
 
