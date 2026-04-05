@@ -451,7 +451,7 @@ GO
                         wrapper.Context.SaveChanges();
                 }
             }
-            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1") {
+            if (Program.GetValueByKey(Program.cfg, "IsSendOrder") == "1") {
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     List<orders> tempList = null; // Объявляем вне try, чтобы использовать в catch
@@ -712,7 +712,9 @@ GO
             }
 
             // Таймер запроса заявок из Oracle AIS (JYSAN / Tengri)
-            if (_getOrdersForSendIntervalMilliseconds > 0 && (Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase)) && OracleAisConnectionFactory.IsInitialized)
+            if (_getOrdersForSendIntervalMilliseconds > 0 
+                && (Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase)) 
+                && OracleAisConnectionFactory.IsInitialized)
             {
                 try
                 {
@@ -759,7 +761,7 @@ GO
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                     {
                         var db = wrapper.Context;
-                        db.heartbeat.Add(new heartbeat() { exchangeCode = Program.ADAPTER, lastTime = DateTime.Now, isReal = Program.ISREAL, isMM = 0 });
+                        db.heartbeat.Add(new heartbeat() { exchangeCode = Program.ADAPTER, lastTime = DateTime.Now, isReal = Program.ISREAL, isMM = Program.isMMorder });
                         db.SaveChanges();
                     }
                 }
@@ -1632,7 +1634,7 @@ GO
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                     {
                         var db = wrapper.Context;
-                        db.heartbeat.Add(new heartbeat() {  exchangeCode = Program.ADAPTER, lastTime  =DateTime.Now, isReal = Program.ISREAL, isMM = 0});
+                        db.heartbeat.Add(new heartbeat() {  exchangeCode = Program.ADAPTER, lastTime  =DateTime.Now, isReal = Program.ISREAL, isMM = Program.isMMorder});
                         db.SaveChanges();
                 }
             }
@@ -3226,7 +3228,7 @@ GO
             
             while (true)   
             {
-                if (this.MyInitiator is not null && this.MyInitiator.IsLoggedOn)
+                if (this.MyInitiator is not null && this.MyInitiator.IsLoggedOn && Program.GetValueByKey(Program.cfg, "IsSendOrder") == "1")
                     checkNewOrders();
                 
                 // Задержка между проверками 
