@@ -127,7 +127,12 @@ namespace TradeClient
                 cfg = File.ReadAllText("fix_"+ ADAPTER + ".cfg");
                 System.IO.TextReader textReader = new StringReader(cfg);
                 QuickFix.SessionSettings settings = new QuickFix.SessionSettings(textReader);
-                
+
+                try { BROKER = GetValueByKey(cfg, "Broker"); } catch (Exception ex) { } ;
+                try { EXCH_CODE = GetValueByKey(cfg, "ExchangeCode"); } catch (Exception ex) { } ;
+                try { ISREAL = byte.Parse(GetValueByKey(cfg, "IsReal")); } catch (Exception ex) { } ;
+                try { isMMorder = byte.Parse(GetValueByKey(cfg, "IsMMorder")); } catch (Exception ex) { } ;
+
                 // Инициализация фабрики DbContext для управления пулом подключений
                 string connectionString = GetValueByKey(cfg, "ConnectionString");
                 if (string.IsNullOrEmpty(connectionString))
@@ -169,13 +174,7 @@ namespace TradeClient
                     }
                 }
 
-                try { BROKER = GetValueByKey(cfg, "Broker"); } catch(Exception ex){};
-                try { EXCH_CODE = GetValueByKey(cfg,"ExchangeCode"); } catch(Exception ex){};
-                try{ISREAL = byte.Parse(GetValueByKey(cfg,"IsReal")); } catch(Exception ex){};
-                try { isMMorder = byte.Parse(GetValueByKey(cfg, "IsMMorder")); } catch (Exception ex) { };
                 
-
-
                 //QuickFix.SessionSettings settings = new QuickFix.SessionSettings((file);
 
                 //---------------------------------------------------------------------------------------
