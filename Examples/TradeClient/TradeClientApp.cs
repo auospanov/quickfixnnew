@@ -2595,7 +2595,10 @@ GO
                 Console.WriteLine("Ошибка TradeCaptureReport - " + ex.Message);
             }
         }
-        
+        public void OnMessage(QuickFix.FIX50SP2.TradeCaptureReport tcr, SessionID s)
+        {
+
+        }
         public void OnMessage(QuickFix.FIX50SP2.SecurityDefinition sd, SessionID s)
         {
             try
