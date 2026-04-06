@@ -795,6 +795,7 @@ GO
                             order.comments = $"Tag={m.RefTagID}, Reason={m.SessionRejectReason} {text}";
                             order.exchangeCode = Program.EXCH_CODE;
                             order.serial = m.RefSeqNum.Value.ToString();
+                            order.isReal = Program.ISREAL;
 
                             if (clOrdId > 0) order.clientOrderID = clOrdId.ToString();
 
@@ -835,6 +836,7 @@ GO
                             order.comments = $"Tag=58, Reason={text}";
                             order.exchangeCode = Program.EXCH_CODE;
                             order.serial = rj.RefSeqNum.Value.ToString();
+                            order.isReal = Program.ISREAL;
 
                             if (clOrdId > 0) order.clientOrderID = clOrdId.ToString();
 
@@ -2313,6 +2315,7 @@ GO
                         order.serial = m.RefSeqNum.Value.ToString();
                         order.executionTime = DateTime.Now;
                         order.fullMessage = m.ToJSON();
+                        order.isReal = Program.ISREAL;
 
                         db.orders.Add(order);
                         db.SaveChanges();
@@ -2349,6 +2352,7 @@ GO
                         order.comments = m.Text.Value;
                         order.exchangeCode = Program.EXCH_CODE;
                         order.serial = m.RefSeqNum.Value.ToString();
+                        order.isReal = Program.ISREAL;
 
                         db.orders.Add(order);
                         db.SaveChanges();
@@ -2371,25 +2375,59 @@ GO
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                     {
                         var db = wrapper.Context;
-                        int clOrdId = 0;
 
-                        try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
+                        NewOrders? newOrd = null;
+                        if (int.TryParse(m.RefSeqNum.Value.ToString(), out int refSeqNum))
+                        {
+                            try
+                            {
+                                newOrd = db.NewOrders
+                                    .Where(r => r.msgNum == refSeqNum)
+                                    .OrderByDescending(r => r.Id)
+                                    .FirstOrDefault();
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Ошибка при поиске NewOrders: {ex.Message}");
+                            }
+                        }
 
-                        var order = new orders();
-                        order.msgNum = int.Parse(m.Header.GetString(34));
-                        order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
-                        order.status = "REJECTED";
-                        order.clientID = "RefMsgType = " + m.RefMsgType.Value;
-                        order.executionTime = m.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime);
-                        order.fullMessage = m.ToJSON();
-                        order.comments = m.Text.Value;
-                        order.exchangeCode = Program.EXCH_CODE;
-                        order.serial = m.RefSeqNum.Value.ToString();
+                        var order = new orders
+                        {
+                            msgNum = int.TryParse(m.Header.GetString(34), out int msgNum) ? msgNum : 0,
+                            orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}",
+                            status = "REJECTED",
+                            executionTime = m.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime),
+                            fullMessage = m.ToJSON(),
+                            comments = m.Text?.Value,
+                            exchangeCode = Program.EXCH_CODE,
+                            serial = m.RefSeqNum.Value.ToString(),
+                            isReal = Program.ISREAL
+                        };
 
-                        if (clOrdId > 0) order.clientOrderID = clOrdId.ToString();
+                        if (newOrd != null)
+                        {
+                            order.clientOrderID = newOrd.Id.ToString();
+                            order.clientID = newOrd.ClientId;
+                            order.ticker = newOrd.Ticker;
+                            order.orderID_AIS = newOrd.OrderID_AIS;
+                            order.bloom_exchCode = newOrd.Bloom_ExchCode;
+                            order.direction = newOrd.Direction;
+                            order.type = newOrd.Type;
+                            order.clientName = newOrd.ClientName;
+                            order.investor = newOrd.Investor;
+                            order.isMMorder = (byte)newOrd.IsMMOrder;
+                        }
 
-                        db.orders.Add(order);
-                        db.SaveChanges();
+                        try
+                        {
+                            db.orders.Add(order);
+                            db.SaveChanges();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Ошибка при сохранении заказа: {ex.Message}");
+                        }
                     }
                 }
                 catch (Exception e)
@@ -2422,6 +2460,7 @@ GO
                         order.comments = m.Text.Value;
                         order.exchangeCode = Program.EXCH_CODE;
                         order.serial = m.RefSeqNum.Value.ToString();
+                        order.isReal = Program.ISREAL;
 
                         if (clOrdId > 0) order.clientOrderID = clOrdId.ToString();
 
