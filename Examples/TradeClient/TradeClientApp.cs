@@ -2599,7 +2599,64 @@ GO
         }
         public void OnMessage(QuickFix.FIX50SP2.TradeCaptureReport tcr, SessionID s)
         {
+            try
+            {
+                using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                {
+                    var db = wrapper.Context;
+                    tradeCapture tc = new tradeCapture();
+                    tc.TradeReportID = tcr.TradeReportID.Value;
+                    tc.exchangeCode = Program.EXCH_CODE;
+                    tc.ticker = tcr.Symbol.Value;
+                    tc.LastPx = tcr.LastPx.Value.ToString();
+                    tc.LastQty = tcr.LastQty.Value.ToString();
+                    tc.TradeDate = tcr.TradeDate.Value;
+                    if (tcr.IsSetNoSides())
+                    {
+                        int sidesCount = tcr.NoSides.Value;
+                        for (int i = 0; i < sidesCount; i++)
+                        {
+                            // Получаем группу по индексу
+                            QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup sideGroup =
+                                new QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup();
+                            tcr.GetGroup(i, sideGroup);
+                            // Читаем поля внутри группы
+                            if (sideGroup.IsSetSide())
+                            {
+                                var sideField = new Side();
+                                sideGroup.GetField(sideField);
+                                tc.Side = sideField.Value.ToString();
+                            }
+                            else if (sideGroup.IsSetOrderID())
+                            {
+                                var orderIdField = new OrderID();
+                                sideGroup.GetField(orderIdField);
+                                tc.OrderID = orderIdField.Value.ToString();
+                            }
+                            else if (sideGroup.IsSetClOrdID())
+                            {
+                                var clOrderIdField = new ClOrdID();
+                                sideGroup.GetField(clOrderIdField);
+                                tc.ClOrdID = clOrderIdField.Value.ToString();
+                            }
+                            else if (sideGroup.IsSetSecondaryClOrdID())
+                            {
+                                var secClOrderIdField = new SecondaryClOrdID();
+                                sideGroup.GetField(secClOrderIdField);
+                                tc.SecondaryClOrdID = secClOrderIdField.Value.ToString();
+                            }
 
+                        }
+                    }
+                    
+                    db.TradeCapture.Add(tc);
+                    db.SaveChanges();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Ошибка TradeCaptureReport - " + ex.Message);
+            }
         }
         public void OnMessage(QuickFix.FIX50SP2.SecurityDefinition sd, SessionID s)
         {
