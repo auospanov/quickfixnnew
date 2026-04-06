@@ -451,7 +451,7 @@ GO
                         wrapper.Context.SaveChanges();
                 }
             }
-            if (Program.GetValueByKey(Program.cfg, "IsSendOrder") == "1") {
+            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1") {
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     List<orders> tempList = null; // Объявляем вне try, чтобы использовать в catch
