@@ -153,7 +153,7 @@ namespace TradeClient
                     Environment.Exit(0);
                 }
                 // Пул подключений к Oracle AIS (для JYSAN/Tengri — заявки для отправки на FIX)                
-                if (BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrEmpty(BROKER) && (BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase)))
                 {
                     string oracleAisCs = OracleAisConnectionFactory.BuildConnectionString(cfg);
                     if (!string.IsNullOrEmpty(oracleAisCs))

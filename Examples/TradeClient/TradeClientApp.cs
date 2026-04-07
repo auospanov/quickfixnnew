@@ -358,7 +358,7 @@ GO
         /// </summary>
         private void HbGetOrdersForSend()
         {
-            if (!Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) && !Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(Program.BROKER) && !Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) && !Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase))
                 return;
             if (!OracleAisConnectionFactory.IsInitialized)
                 return;
@@ -713,7 +713,7 @@ GO
 
             // Таймер запроса заявок из Oracle AIS (JYSAN / Tengri)
             if (_getOrdersForSendIntervalMilliseconds > 0 
-                && (Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase)) 
+                && (!string.IsNullOrEmpty(Program.BROKER) && (Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase))) 
                 && OracleAisConnectionFactory.IsInitialized)
             {
                 try
@@ -1652,7 +1652,7 @@ GO
                 if (isDebug) Console.WriteLine("Received ExecutionReport");
                 try
                 {
-                    if (_getOrdersForSendIntervalMilliseconds > 0 && (Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase)) && OracleAisConnectionFactory.IsInitialized)
+                    if (_getOrdersForSendIntervalMilliseconds > 0 && !string.IsNullOrEmpty(Program.BROKER) && (Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase)) && OracleAisConnectionFactory.IsInitialized)
                     {
                         WriteOrderToAIS(m);
                     }
@@ -1850,7 +1850,7 @@ GO
             if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received ExecutionReport");
-                if (_getOrdersForSendIntervalMilliseconds > 0 && (Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase)) && OracleAisConnectionFactory.IsInitialized)
+                if (_getOrdersForSendIntervalMilliseconds > 0 && !string.IsNullOrEmpty(Program.BROKER) && (Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase)) && OracleAisConnectionFactory.IsInitialized)
                 {
                     try { WriteOrderToAIS(m); } catch { }
                 }
@@ -1992,7 +1992,7 @@ GO
             if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received ExecutionReport");
-                if (_getOrdersForSendIntervalMilliseconds > 0 && (Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase)) && OracleAisConnectionFactory.IsInitialized)
+                if (_getOrdersForSendIntervalMilliseconds > 0 && !string.IsNullOrEmpty(Program.BROKER) && (Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase)) && OracleAisConnectionFactory.IsInitialized)
                 {
                     try { WriteOrderToAIS(m); } catch { }
                 }
@@ -2636,6 +2636,99 @@ GO
                 Console.WriteLine("Ошибка TradeCaptureReport - " + ex.Message);
             }
         }
+
+        //public void OnMessage(QuickFix.FIX50SP2.TradeCaptureReport tcr, SessionID s)
+        //{
+        //    try
+        //    {
+        //        using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+        //        {
+        //            var db = wrapper.Context;
+        //            tradeCapture tc = new tradeCapture();
+        //            tc.TradeReportID = tcr.TradeReportID.Value;
+        //            tc.exchangeCode = Program.EXCH_CODE;
+        //            tc.ticker = tcr.Symbol.Value;
+        //            tc.LastPx = tcr.LastPx.Value.ToString();
+        //            tc.LastQty = tcr.LastQty.Value.ToString();
+        //            tc.TradeDate = tcr.TradeDate.Value;
+        //            if (tcr.IsSetNoSides())
+        //            {
+        //                int sidesCount = tcr.NoSides.Value;
+        //                for (int i = 0; i < sidesCount; i++)
+        //                {
+        //                    // Получаем группу по индексу
+        //                    QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup sideGroup =
+        //                        new QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup();
+        //                    tcr.GetGroup(i, sideGroup);
+        //                    // Читаем поля внутри группы
+        //                    if (sideGroup.IsSetSide())
+        //                    {
+        //                        var sideField = new Side();
+        //                        sideGroup.GetField(sideField);
+        //                        tc.Side = sideField.Value.ToString();
+        //                    }
+        //                    else if (sideGroup.IsSetOrderID())
+        //                    {
+        //                        var orderIdField = new OrderID();
+        //                        sideGroup.GetField(orderIdField);
+        //                        tc.OrderID = orderIdField.Value.ToString();
+        //                    }
+        //                    else if (sideGroup.IsSetClOrdID())
+        //                    {
+        //                        var clOrderIdField = new ClOrdID();
+        //                        sideGroup.GetField(clOrderIdField);
+        //                        tc.ClOrdID = clOrderIdField.Value.ToString();
+        //                    }
+        //                    else if (sideGroup.IsSetSecondaryClOrdID())
+        //                    {
+        //                        var secClOrderIdField = new SecondaryClOrdID();
+        //                        sideGroup.GetField(secClOrderIdField);
+        //                        tc.SecondaryClOrdID = secClOrderIdField.Value.ToString();
+        //                    }
+
+        //                }
+        //            }
+
+        //            db.TradeCapture.Add(tc);
+        //            db.SaveChanges();
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        Console.WriteLine("Ошибка TradeCaptureReport - " + ex.Message);
+        //    }
+        //}
+
+
+
+        public class tradeCapture1
+        {
+            public string TradeReportID { get; set; }
+            public string exchangeCode { get; set; }
+            public string ticker { get; set; }
+            public decimal LastPx { get; set; }
+            public decimal LastQty { get; set; }
+            public string TradeDate { get; set; }
+
+            public List<TradeCaptureSide> Sides { get; set; } = new List<TradeCaptureSide>();
+        }
+
+        public class TradeCaptureSide
+        {
+            public string Side { get; set; }
+            public string OrderID { get; set; }
+            public string ClOrdID { get; set; }
+            public string SecondaryClOrdID { get; set; }
+
+            public List<TradeCaptureParty> Parties { get; set; } = new List<TradeCaptureParty>();
+        }
+
+        public class TradeCaptureParty
+        {
+            public string PartyID { get; set; }
+            public string PartyRole { get; set; }
+        }
+
         public void OnMessage(QuickFix.FIX50SP2.TradeCaptureReport tcr, SessionID s)
         {
             try
@@ -2643,51 +2736,88 @@ GO
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
                     var db = wrapper.Context;
-                    tradeCapture tc = new tradeCapture();
-                    tc.TradeReportID = tcr.TradeReportID.Value;
-                    tc.exchangeCode = Program.EXCH_CODE;
-                    tc.ticker = tcr.Symbol.Value;
-                    tc.LastPx = tcr.LastPx.Value.ToString();
-                    tc.LastQty = tcr.LastQty.Value.ToString();
-                    tc.TradeDate = tcr.TradeDate.Value;
-                    if (tcr.IsSetNoSides())
-                    {
-                        int sidesCount = tcr.NoSides.Value;
-                        for (int i = 0; i < sidesCount; i++)
-                        {
-                            // Получаем группу по индексу
-                            QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup sideGroup =
-                                new QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup();
-                            tcr.GetGroup(i, sideGroup);
-                            // Читаем поля внутри группы
-                            if (sideGroup.IsSetSide())
-                            {
-                                var sideField = new Side();
-                                sideGroup.GetField(sideField);
-                                tc.Side = sideField.Value.ToString();
-                            }
-                            else if (sideGroup.IsSetOrderID())
-                            {
-                                var orderIdField = new OrderID();
-                                sideGroup.GetField(orderIdField);
-                                tc.OrderID = orderIdField.Value.ToString();
-                            }
-                            else if (sideGroup.IsSetClOrdID())
-                            {
-                                var clOrderIdField = new ClOrdID();
-                                sideGroup.GetField(clOrderIdField);
-                                tc.ClOrdID = clOrderIdField.Value.ToString();
-                            }
-                            else if (sideGroup.IsSetSecondaryClOrdID())
-                            {
-                                var secClOrderIdField = new SecondaryClOrdID();
-                                sideGroup.GetField(secClOrderIdField);
-                                tc.SecondaryClOrdID = secClOrderIdField.Value.ToString();
-                            }
 
-                        }
-                    }
-                    
+                    var tc = new tradeCapture
+                    {
+                        TradeReportID = tcr.TradeReportID.Value,
+                        exchangeCode = Program.EXCH_CODE,
+                        ticker = tcr.Symbol.Value,
+                        LastPx = tcr.LastPx.ToString(),
+                        LastQty = tcr.LastQty.ToString(),
+                        TradeDate = tcr.TradeDate.Value
+                    };
+
+                    //if (tcr.IsSetNoSides())
+                    //{
+                    //    int sidesCount = tcr.NoSides.Value;
+                    //    for (int i = 0; i < sidesCount; i++)
+                    //    {
+                    //        var sideGroup = new QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup();
+                    //        tcr.GetGroup(i, sideGroup);
+
+                    //        var side = new TradeCaptureSide();
+
+                    //        if (sideGroup.IsSetSide())
+                    //        {
+                    //            var sideField = new Side();
+                    //            sideGroup.GetField(sideField);
+                    //            side.Side = sideField.Value.ToString();
+                    //        }
+
+                    //        if (sideGroup.IsSetOrderID())
+                    //        {
+                    //            var orderIdField = new OrderID();
+                    //            sideGroup.GetField(orderIdField);
+                    //            side.OrderID = orderIdField.Value.ToString();
+                    //        }
+
+                    //        if (sideGroup.IsSetClOrdID())
+                    //        {
+                    //            var clOrderIdField = new ClOrdID();
+                    //            sideGroup.GetField(clOrderIdField);
+                    //            side.ClOrdID = clOrderIdField.Value.ToString();
+                    //        }
+
+                    //        if (sideGroup.IsSetSecondaryClOrdID())
+                    //        {
+                    //            var secClOrderIdField = new SecondaryClOrdID();
+                    //            sideGroup.GetField(secClOrderIdField);
+                    //            side.SecondaryClOrdID = secClOrderIdField.Value.ToString();
+                    //        }
+
+                    //        // Обработка участников сделки (PartyIDs)
+                    //        if (sideGroup.IsSetNoPartyIDs())
+                    //        {
+                    //            int partyCount = sideGroup.GetInt(Tags.NoPartyIDs);
+                    //            for (int j = 0; j < partyCount; j++)
+                    //            {
+                    //                var partyGroup = new QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup.NoPartyIDsGroup();
+                    //                sideGroup.GetGroup(j, partyGroup);
+
+                    //                var party = new TradeCaptureParty();
+
+                    //                if (partyGroup.IsSetPartyID())
+                    //                {
+                    //                    var partyIdField = new PartyID();
+                    //                    partyGroup.GetField(partyIdField);
+                    //                    party.PartyID = partyIdField.Value;
+                    //                }
+
+                    //                if (partyGroup.IsSetPartyRole())
+                    //                {
+                    //                    var partyRoleField = new PartyRole();
+                    //                    partyGroup.GetField(partyRoleField);
+                    //                    party.PartyRole = partyRoleField.Value.ToString();
+                    //                }
+
+                    //                side.Parties.Add(party);
+                    //            }
+                    //        }
+
+                    //        //tc.Sides.Add(side);
+                    //    }
+                    //}
+
                     db.TradeCapture.Add(tc);
                     db.SaveChanges();
                 }
@@ -2697,6 +2827,7 @@ GO
                 Console.WriteLine("Ошибка TradeCaptureReport - " + ex.Message);
             }
         }
+
         public void OnMessage(QuickFix.FIX50SP2.SecurityDefinition sd, SessionID s)
         {
             try
