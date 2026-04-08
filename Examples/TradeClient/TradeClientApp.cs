@@ -2735,10 +2735,10 @@ GO
                             {
                                 int count = tcr.NoSides.Value;
 
-                                for (int i = 1; i <= count; i++)
+                                for (int i1 = 1; i1 <= count; i1++)
                                 {
                                     var group = new QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup();
-                                    tcr.GetGroup(i, group);
+                                    tcr.GetGroup(i1, group);
 
                                     if (group.IsSetSide())
                                         tc.Side = group.Side.Value.ToString();
@@ -2821,7 +2821,7 @@ GO
             public string PartyID { get; set; }
             public string PartyRole { get; set; }
         }
-
+        /*
         public void OnMessage(QuickFix.FIX50SP2.TradeCaptureReport tcr, SessionID s)
         {
             try
@@ -2843,7 +2843,7 @@ GO
                     if (tcr.IsSetNoSides())
                     {
                         int sidesCount = tcr.NoSides.Value;
-                        for (int i = 1; i < sidesCount; i++)
+                        for (int i = 0; i < sidesCount; i++)
                         {
                             var sideGroup = new QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup();
                             tcr.GetGroup(i, sideGroup);
@@ -2920,7 +2920,7 @@ GO
                 Console.WriteLine("Ошибка TradeCaptureReport - " + ex.Message);
             }
         }
-
+        */
         public void OnMessage(QuickFix.FIX50SP2.SecurityDefinition sd, SessionID s)
         {
             try
