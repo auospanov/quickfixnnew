@@ -1278,6 +1278,8 @@ GO
         /// <summary>
         /// Build FixOrder from ExecutionReport and send to dbo.fixDataUpdateNew (analog of Java writeOrder).
         /// </summary>
+        
+        
         private void WriteOrderToAIS(QuickFix.Message m)
         {
             try
@@ -1430,197 +1432,256 @@ GO
             }
         }
 
+        private void WriteCancelRejectToAIS(QuickFix.Message m)
+        {
+            try
+            {
+                //if upper(@objectType) = 'FIX_ORDER' and upper(@typeQuery) = 'CANCELREJECT'
+                //--если это ответ от биржи об отклонении заявки на отмену приказа
+
+                //SELECT @orderID = replace(value, 'null', '') FROM dbo.fnSplitJson2(@messageText, NULL) where name = 'clOrdID';
+                //SELECT @origClOrderID = replace(value, 'null', '') FROM dbo.fnSplitJson2(@messageText, NULL) where name = 'origClOrdID';
+                //SELECT @orderStatus = replace(value, 'null', '') FROM dbo.fnSplitJson2(@messageText, NULL) where name = 'status';
+                //SELECT @userName = replace(value, 'null', '') FROM dbo.fnSplitJson2(@messageText, NULL) where name = 'userName';
+                //SELECT @comments = replace(value, 'null', '') FROM dbo.fnSplitJson2(@messageText, NULL) where name = 'comment';
+
+                var order = new FixOrder();
+                
+                if (m.IsSetField(11)) order.ClOrdID = m.GetString(11);
+                if (m.IsSetField(41)) order.OrigClOrdID = m.GetString(41);
+                if (m.IsSetField(39)) order.Status = GetOrdStatusName(m.GetChar(39));
+
+                if (m.IsSetField(58))
+                {
+                    string comment = m.GetString(58);
+                    if (Program.EXCH_CODE != null && Program.EXCH_CODE.Length >= 4 && Program.EXCH_CODE.Substring(0, 4).Equals("KASE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        try { order.Comment = Encoding.GetEncoding("windows-1251").GetString(Encoding.GetEncoding("windows-1252").GetBytes(comment)); }
+                        catch { order.Comment = comment; }
+                    }
+                    else order.Comment = comment;
+                }
+                
+                try
+                {
+                    string raw = m.ToString().Replace('\u0001', ' ');
+                    int beg = raw.IndexOf(" 57=") + 4;
+                    int end = raw.IndexOf(" ", beg);
+                    if (beg > 3 && end > beg) order.UserName = raw.Substring(beg, end - beg).Trim();
+                }
+                catch { }
+
+                order.TypeQuery = "CANCELREJECT";
+                order.ObjectType = "FIX_ORDER";
+                order.ExchCode = Program.EXCH_CODE ?? "";
+                order.IsReal = Program.ISREAL;
+
+                var settings = new JsonSerializerSettings
+                {
+                    ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver(),
+                    NullValueHandling = NullValueHandling.Ignore
+                };
+                string json = JsonConvert.SerializeObject(order, settings);
+                var res = FixGetUpdateDataNew(json);
+                if (isDebug && res.resCode != "0") Console.WriteLine($"[WriteCancelRejectToAIS] resCode={res.resCode} result={res.resultString}");
+            }
+            catch (Exception ex)
+            {
+                DailyLogger.Log($"[WriteCancelRejectToAIS] {ex.Message}");
+            }
+        }
+
         #region MessageCracker handlers
-    //public void OnMessage(QuickFix.FIX44.ExecutionReport m, SessionID s)
-    //{
-    //    if (isDebug) Console.WriteLine("Received ExecutionReport");
+        //public void OnMessage(QuickFix.FIX44.ExecutionReport m, SessionID s)
+        //{
+        //    if (isDebug) Console.WriteLine("Received ExecutionReport");
 
-    //    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-    //    {
-    //        var db = wrapper.Context;
-    //    {
-    //        var order = new FixOrder(); // аналог Java Order
+        //    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+        //    {
+        //        var db = wrapper.Context;
+        //    {
+        //        var order = new FixOrder(); // аналог Java Order
 
-    //        // ClOrdID и OrigClOrdID
-    //        if (m.ExecType.getValue() == QuickFix.Fields.ExecType.CANCELED || m.ExecType.getValue() == QuickFix.Fields.ExecType.PENDING_CANCEL)
-    //        {
-    //            if (m.IsSetField(11)) order.ClOrdID = m.GetString(11);
-    //            if (m.IsSetField(41)) order.OrigClOrdID = m.GetString(41);
-    //        }
-    //        else if (m.ExecType.getValue() == QuickFix.Fields.ExecType.REJECTED)
-    //        {
-    //            if (m.IsSetField(11)) order.ClOrdID = m.GetString(11);
-    //        }
-    //        else
-    //        {
-    //            if (m.IsSetField(11)) order.ClOrdID = m.GetString(11); // аналог paramExecutionReport.getRef()
-    //        }
+        //        // ClOrdID и OrigClOrdID
+        //        if (m.ExecType.getValue() == QuickFix.Fields.ExecType.CANCELED || m.ExecType.getValue() == QuickFix.Fields.ExecType.PENDING_CANCEL)
+        //        {
+        //            if (m.IsSetField(11)) order.ClOrdID = m.GetString(11);
+        //            if (m.IsSetField(41)) order.OrigClOrdID = m.GetString(41);
+        //        }
+        //        else if (m.ExecType.getValue() == QuickFix.Fields.ExecType.REJECTED)
+        //        {
+        //            if (m.IsSetField(11)) order.ClOrdID = m.GetString(11);
+        //        }
+        //        else
+        //        {
+        //            if (m.IsSetField(11)) order.ClOrdID = m.GetString(11); // аналог paramExecutionReport.getRef()
+        //        }
 
-    //        // ExecID (Serial)
-    //        if (m.IsSetField(17)) order.Serial = m.GetString(17);
+        //        // ExecID (Serial)
+        //        if (m.IsSetField(17)) order.Serial = m.GetString(17);
 
-    //        // OrderID (Reference on exchange)
-    //        if (m.IsSetField(37)) order.OrderReferenceExchange = m.GetString(37);
+        //        // OrderID (Reference on exchange)
+        //        if (m.IsSetField(37)) order.OrderReferenceExchange = m.GetString(37);
 
-    //        // Comment / Text
-    //        if (m.IsSetField(58))
-    //        {
-    //            string comment = m.GetString(58);
-    //            if (FIXClient.FIX_EXCHANGECODE.StartsWith("KASE", StringComparison.OrdinalIgnoreCase))
-    //            {
-    //                order.Comment = Encoding.GetEncoding("windows-1251").GetString(Encoding.GetEncoding("windows-1252").GetBytes(comment));
-    //            }
-    //            else
-    //            {
-    //                order.Comment = comment;
-    //            }
-    //        }
+        //        // Comment / Text
+        //        if (m.IsSetField(58))
+        //        {
+        //            string comment = m.GetString(58);
+        //            if (FIXClient.FIX_EXCHANGECODE.StartsWith("KASE", StringComparison.OrdinalIgnoreCase))
+        //            {
+        //                order.Comment = Encoding.GetEncoding("windows-1251").GetString(Encoding.GetEncoding("windows-1252").GetBytes(comment));
+        //            }
+        //            else
+        //            {
+        //                order.Comment = comment;
+        //            }
+        //        }
 
-    //        // Instr Symbol
-    //        if (m.IsSetField(55)) order.Instr = m.GetString(55);
+        //        // Instr Symbol
+        //        if (m.IsSetField(55)) order.Instr = m.GetString(55);
 
-    //        // Account
-    //        if (m.IsSetField(1)) order.Acc = m.GetString(1);
+        //        // Account
+        //        if (m.IsSetField(1)) order.Acc = m.GetString(1);
 
-    //        // Investor PartyId (tag 448 in group 453 usually)
-    //        if (m.IsSetField(448)) order.Investor = m.GetString(448);
+        //        // Investor PartyId (tag 448 in group 453 usually)
+        //        if (m.IsSetField(448)) order.Investor = m.GetString(448);
 
-    //        // Currency
-    //        if (FIXClient.FIX_EXCHANGECODE.StartsWith("KASE", StringComparison.OrdinalIgnoreCase))
-    //        {
-    //            if (m.IsSetField(6029)) order.Currency = m.GetString(6029);
-    //        }
-    //        else if (FIXClient.FIX_EXCHANGECODE.Equals("QUIK", StringComparison.OrdinalIgnoreCase))
-    //        {
-    //            if (m.IsSetField(15)) order.Currency = m.GetString(15);
-    //            if (m.IsSetField(207)) order.Bloom_ExchCode = m.GetString(207);
-    //            if (m.IsSetField(100)) order.SessionId = m.GetString(100);
-    //        }
-    //        else if (FIXClient.FIX_EXCHANGECODE.Equals("Bloomberg", StringComparison.OrdinalIgnoreCase))
-    //        {
-    //            if (m.IsSetField(15)) order.Currency = m.GetString(15);
-    //            if (m.IsSetField(207)) order.Bloom_ExchCode = m.GetString(207);
-    //            if (m.IsSetField(76)) order.ContrBroker = m.GetString(76);
-    //        }
+        //        // Currency
+        //        if (FIXClient.FIX_EXCHANGECODE.StartsWith("KASE", StringComparison.OrdinalIgnoreCase))
+        //        {
+        //            if (m.IsSetField(6029)) order.Currency = m.GetString(6029);
+        //        }
+        //        else if (FIXClient.FIX_EXCHANGECODE.Equals("QUIK", StringComparison.OrdinalIgnoreCase))
+        //        {
+        //            if (m.IsSetField(15)) order.Currency = m.GetString(15);
+        //            if (m.IsSetField(207)) order.Bloom_ExchCode = m.GetString(207);
+        //            if (m.IsSetField(100)) order.SessionId = m.GetString(100);
+        //        }
+        //        else if (FIXClient.FIX_EXCHANGECODE.Equals("Bloomberg", StringComparison.OrdinalIgnoreCase))
+        //        {
+        //            if (m.IsSetField(15)) order.Currency = m.GetString(15);
+        //            if (m.IsSetField(207)) order.Bloom_ExchCode = m.GetString(207);
+        //            if (m.IsSetField(76)) order.ContrBroker = m.GetString(76);
+        //        }
 
-    //        // Side
-    //        if (m.IsSetField(54)) order.Side = m.GetChar(54);
+        //        // Side
+        //        if (m.IsSetField(54)) order.Side = m.GetChar(54);
 
-    //        // LeavesQty
-    //        if (m.IsSetField(151)) order.LeavesQty = m.GetDecimal(151);
+        //        // LeavesQty
+        //        if (m.IsSetField(151)) order.LeavesQty = m.GetDecimal(151);
 
-    //        // Price
-    //        if (m.IsSetField(44)) order.Price = m.GetDecimal(44);
+        //        // Price
+        //        if (m.IsSetField(44)) order.Price = m.GetDecimal(44);
 
-    //        // OrderQty
-    //        if (m.IsSetField(38)) order.Qty = m.GetDecimal(38);
+        //        // OrderQty
+        //        if (m.IsSetField(38)) order.Qty = m.GetDecimal(38);
 
-    //        // LastPrice
-    //        if (m.IsSetField(31)) order.PriceDeal = m.GetDecimal(31);
+        //        // LastPrice
+        //        if (m.IsSetField(31)) order.PriceDeal = m.GetDecimal(31);
 
-    //        // LastQty
-    //        if (m.IsSetField(32)) order.QtyDeal = (long)m.GetDecimal(32);
+        //        // LastQty
+        //        if (m.IsSetField(32)) order.QtyDeal = (long)m.GetDecimal(32);
 
-    //        // AvgPx
-    //        if (m.IsSetField(6)) order.PriceAvg = m.GetDecimal(6);
+        //        // AvgPx
+        //        if (m.IsSetField(6)) order.PriceAvg = m.GetDecimal(6);
 
-    //        // CumQty
-    //        if (m.IsSetField(14)) order.QtyTotal = (long)m.GetDecimal(14);
+        //        // CumQty
+        //        if (m.IsSetField(14)) order.QtyTotal = (long)m.GetDecimal(14);
 
-    //        // ExpireDate
-    //        if (m.IsSetField(126)) order.ExpireDate = m.GetString(126);
+        //        // ExpireDate
+        //        if (m.IsSetField(126)) order.ExpireDate = m.GetString(126);
 
-    //        // TimeInForce
-    //        if (m.IsSetField(59)) order.TimeInForce = m.GetChar(59).ToString();
+        //        // TimeInForce
+        //        if (m.IsSetField(59)) order.TimeInForce = m.GetChar(59).ToString();
 
-    //        // OrderCashQty
-    //        if (m.IsSetField(921)) order.CashQty = m.GetDecimal(921);
+        //        // OrderCashQty
+        //        if (m.IsSetField(921)) order.CashQty = m.GetDecimal(921);
 
-    //        // OrderStatus
-    //        if (m.IsSetField(39)) order.Status = m.GetChar(39).ToString();
+        //        // OrderStatus
+        //        if (m.IsSetField(39)) order.Status = m.GetChar(39).ToString();
 
-    //        // TransactionTime
-    //        if (m.IsSetField(60))
-    //        {
-    //            var transTime = m.GetUtcTimeStamp(60);
-    //            if (FIXClient.FIX_EXCHANGECODE.StartsWith("KASE") || FIXClient.FIX_EXCHANGECODE.Equals("AIX", StringComparison.OrdinalIgnoreCase))
-    //            {
-    //                order.CreationTime = transTime.ToLocalTime();
-    //            }
-    //            else
-    //            {
-    //                order.CreationTime = transTime;
-    //            }
-    //            order.ExecutionTimeStr = transTime.ToString("yyyy-MM-dd HH:mm:ss");
-    //        }
+        //        // TransactionTime
+        //        if (m.IsSetField(60))
+        //        {
+        //            var transTime = m.GetUtcTimeStamp(60);
+        //            if (FIXClient.FIX_EXCHANGECODE.StartsWith("KASE") || FIXClient.FIX_EXCHANGECODE.Equals("AIX", StringComparison.OrdinalIgnoreCase))
+        //            {
+        //                order.CreationTime = transTime.ToLocalTime();
+        //            }
+        //            else
+        //            {
+        //                order.CreationTime = transTime;
+        //            }
+        //            order.ExecutionTimeStr = transTime.ToString("yyyy-MM-dd HH:mm:ss");
+        //        }
 
-    //        // SettlementDate
-    //        if (m.IsSetField(64))
-    //        {
-    //            order.SettlementDateStr = m.GetString(64);
-    //        }
+        //        // SettlementDate
+        //        if (m.IsSetField(64))
+        //        {
+        //            order.SettlementDateStr = m.GetString(64);
+        //        }
 
-    //        // WhoRemoved / RemovedTime
-    //        if (m.IsSetField(10500)) order.WhoRemoved = m.GetString(10500); // кастомный тег
-    //        if (m.IsSetField(10501)) order.WhenRemoved = m.GetUtcTimeStamp(10501); // кастомный тег
+        //        // WhoRemoved / RemovedTime
+        //        if (m.IsSetField(10500)) order.WhoRemoved = m.GetString(10500); // кастомный тег
+        //        if (m.IsSetField(10501)) order.WhenRemoved = m.GetUtcTimeStamp(10501); // кастомный тег
 
-    //        // OrderRestrictions (MM Order flag)
-    //        if (m.IsSetField(529))
-    //        {
-    //            order.IsMMOrder = m.GetString(529) == "5" ? "1" : "0";
-    //        }
-    //        else
-    //        {
-    //            order.IsMMOrder = "0";
-    //        }
+        //        // OrderRestrictions (MM Order flag)
+        //        if (m.IsSetField(529))
+        //        {
+        //            order.IsMMOrder = m.GetString(529) == "5" ? "1" : "0";
+        //        }
+        //        else
+        //        {
+        //            order.IsMMOrder = "0";
+        //        }
 
-    //        // Group 711: Underlying instruments
-    //        if (m.NoUnderlyings.getValue() > 0)
-    //        {
-    //            for (int i = 1; i <= m.NoUnderlyings.getValue(); i++)
-    //            {
-    //                var group = new QuickFix.FIX44.ExecutionReport.NoUnderlyingsGroup();
-    //                m.GetGroup(i, group);
+        //        // Group 711: Underlying instruments
+        //        if (m.NoUnderlyings.getValue() > 0)
+        //        {
+        //            for (int i = 1; i <= m.NoUnderlyings.getValue(); i++)
+        //            {
+        //                var group = new QuickFix.FIX44.ExecutionReport.NoUnderlyingsGroup();
+        //                m.GetGroup(i, group);
 
-    //                if (group.IsSetField(311)) order.UnderlyingInstr = group.GetString(311);
-    //                if (group.IsSetField(879)) order.UnderlyingInstrQty = group.GetLong(879);
-    //            }
-    //        }
+        //                if (group.IsSetField(311)) order.UnderlyingInstr = group.GetString(311);
+        //                if (group.IsSetField(879)) order.UnderlyingInstrQty = group.GetLong(879);
+        //            }
+        //        }
 
-    //        // Yield
-    //        if (m.IsSetField(236)) order.Yield = m.GetDecimal(236);
+        //        // Yield
+        //        if (m.IsSetField(236)) order.Yield = m.GetDecimal(236);
 
-    //        // OrderType
-    //        if (m.IsSetField(40)) order.Type = m.GetChar(40).ToString();
+        //        // OrderType
+        //        if (m.IsSetField(40)) order.Type = m.GetChar(40).ToString();
 
-    //        // TrdMatchID (880)
-    //        if (m.IsSetField(880)) order.TrdMatchID = m.GetString(880);
+        //        // TrdMatchID (880)
+        //        if (m.IsSetField(880)) order.TrdMatchID = m.GetString(880);
 
-    //        // UserName from raw FIX string (tag 57)
-    //        try
-    //        {
-    //            string raw = m.ToString().Replace('\u0001', ' ');
-    //            int beg = raw.IndexOf(" 57=") + 4;
-    //            int end = raw.IndexOf(" ", beg);
-    //            if (beg > 3 && end > beg)
-    //            {
-    //                order.UserName = raw.Substring(beg, end - beg).Trim();
-    //            }
-    //        }
-    //        catch { }
+        //        // UserName from raw FIX string (tag 57)
+        //        try
+        //        {
+        //            string raw = m.ToString().Replace('\u0001', ' ');
+        //            int beg = raw.IndexOf(" 57=") + 4;
+        //            int end = raw.IndexOf(" ", beg);
+        //            if (beg > 3 && end > beg)
+        //            {
+        //                order.UserName = raw.Substring(beg, end - beg).Trim();
+        //            }
+        //        }
+        //        catch { }
 
-    //        // Прочие поля
-    //        order.TypeQuery = "update";
-    //        order.ObjectType = "fix_order";
-    //        order.ExchCode = FIXClient.FIX_EXCHANGECODE;
-    //        order.IsReal = FIXClient.FIX_ISREAL;
+        //        // Прочие поля
+        //        order.TypeQuery = "update";
+        //        order.ObjectType = "fix_order";
+        //        order.ExchCode = FIXClient.FIX_EXCHANGECODE;
+        //        order.IsReal = FIXClient.FIX_ISREAL;
 
-    //        // Добавить в БД или временный список
-    //        // db.FixOrders.Add(order);
-    //        // db.SaveChanges();
-    //        FixOrdersList.Add(order); // если временная коллекция
-    //    }
-    //}
+        //        // Добавить в БД или временный список
+        //        // db.FixOrders.Add(order);
+        //        // db.SaveChanges();
+        //        FixOrdersList.Add(order); // если временная коллекция
+        //    }
+        //}
         public void OnMessage(QuickFix.FIX50SP2.MarketDefinition m, SessionID s)
         {
 
@@ -2479,31 +2540,41 @@ GO
             if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
-                try
+
+                if (_getOrdersForSendIntervalMilliseconds > 0 && !string.IsNullOrEmpty(Program.BROKER) && (Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) || Program.BROKER.Equals("Tengri", StringComparison.OrdinalIgnoreCase)) && OracleAisConnectionFactory.IsInitialized)
                 {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
-                        var order = new orders();
-                        order.msgNum = int.Parse(m.Header.GetString(34));
-                        order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
-                        order.status = "REJECTED";
-                        //order.clientID = "RefMsgType = " + m.RefMsgType.Value;
-                        order.executionTime = m.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime);
-                        order.fullMessage = m.ToJSON();
-                        string text = m.IsSetField(QuickFix.Fields.Tags.Text) ? m.GetString(QuickFix.Fields.Tags.Text) : string.Empty;
-                        order.comments = $"Reason={m.CxlRejReason} {text}";
-                        order.exchangeCode = Program.EXCH_CODE;
-                        order.serial = m.OrderID.Value.ToString();
-                        order.clientOrderID = m.ClOrdID.Value;
-
-                        OrdersCache.Add(order);
-
-                    }
+                    try { WriteCancelRejectToAIS(m); } catch { }
                 }
-                catch (Exception e)
+                else
                 {
-                    DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    try
+                    {
+                        using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                        {
+                            var db = wrapper.Context;
+
+                            var order = new orders();
+                            order.msgNum = int.Parse(m.Header.GetString(34));
+                            order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
+                            order.status = "REJECTED";
+                            //order.clientID = "RefMsgType = " + m.RefMsgType.Value;
+                            order.executionTime = m.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime);
+                            order.fullMessage = m.ToJSON();
+                            string text = m.IsSetField(QuickFix.Fields.Tags.Text) ? m.GetString(QuickFix.Fields.Tags.Text) : string.Empty;
+                            order.comments = $"Reason={m.CxlRejReason} {text}";
+                            order.exchangeCode = Program.EXCH_CODE;
+                            order.serial = m.OrderID.Value.ToString();
+                            order.clientOrderID = m.ClOrdID.Value;
+                            order.isReal = Program.ISREAL;
+
+                            OrdersCache.Add(order);
+
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    }
                 }
             }
         }
