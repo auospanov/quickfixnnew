@@ -26,6 +26,7 @@ using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 using static System.Collections.Specialized.BitVector32;
 using ApplicationException = System.ApplicationException;
 using Exception = System.Exception;
+using Serilog;
 
 
 namespace TradeClient
@@ -42,6 +43,7 @@ namespace TradeClient
         private readonly int portionSendOrder = 100;
         private readonly int _getOrdersForSendIntervalMilliseconds = 0; // 0 = отключено
         //private readonly int _timerIntervalMilliseconds = int.Parse(Program.GetValueByKey(Program.cfg, "timerIntervalMilliseconds"));
+
         public TradeClientApp(SessionSettings settings)
         {
 
@@ -1703,6 +1705,7 @@ GO
             }
             catch(Exception e) {
                 DailyLogger.Log($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                recToLog("Heartbeat - " + e.Message);
             }
         }
   
@@ -1899,10 +1902,11 @@ GO
                         catch (Exception e)
                         {
                             DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                            recToLog("ExecutionReport - " + e.Message);
                         }
                     }
                 }
-                catch { }
+                catch(Exception ex) { recToLog("ExecutionReport - " + ex.Message); }
 
             }
         }
@@ -2043,6 +2047,7 @@ GO
                     catch (Exception e)
                     {
                         DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                        recToLog("ExecutionReport - " + e.Message);
                     }
                 }
             }
@@ -2313,6 +2318,7 @@ GO
                     catch (Exception e)
                     {
                         DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                        recToLog("ExecutionReport - " + e.Message);
                     }
                 }
             }
@@ -2385,6 +2391,7 @@ GO
                 catch (Exception e)
                 {
                     DailyLogger.Log($"[FIX44.Reject] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    recToLog("FIX44.Reject - " + e.Message);
                 }
             }
 
@@ -2421,7 +2428,8 @@ GO
                 }
                 catch (Exception e)
                 {
-                    DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    DailyLogger.Log($"[BusinessMessageReject] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    recToLog("BusinessMessageReject - " + e.Message);
                 }
             }
 
@@ -2488,12 +2496,14 @@ GO
                         catch (Exception ex)
                         {
                             Console.WriteLine($"Ошибка при сохранении заказа: {ex.Message}");
+                            recToLog("Ошибка при сохранении заказа - " + ex.Message);
                         }
                     }
                 }
                 catch (Exception e)
                 {
-                    DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    DailyLogger.Log($"[BusinessMessageReject] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    recToLog("BusinessMessageReject - " + e.Message);
                 }
             }            
         }
@@ -2531,7 +2541,8 @@ GO
                 }
                 catch (Exception e)
                 {
-                    DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    DailyLogger.Log($"[BusinessMessageReject] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    recToLog("BusinessMessageReject - " + e.Message);
                 }
             }
         }
@@ -2573,7 +2584,8 @@ GO
                     }
                     catch (Exception e)
                     {
-                        DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                        DailyLogger.Log($"[OrderCancelReject] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                        recToLog("OrderCancelReject - " + e.Message);
                     }
                 }
             }
@@ -2607,7 +2619,8 @@ GO
                 }
                 catch (Exception e)
                 {
-                    DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    DailyLogger.Log($"[OrderCancelReject] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    recToLog("OrderCancelReject - " + e.Message);
                 }
             }
         }
@@ -2705,6 +2718,7 @@ GO
             catch(Exception ex)
             {
                 Console.WriteLine("Ошибка TradeCaptureReport - " + ex.Message);
+                recToLog("TradeCaptureReport - " + ex.Message);
             }
         }
 
@@ -2722,6 +2736,9 @@ GO
                     tc.LastPx = tcr.LastPx.Value.ToString();
                     tc.LastQty = tcr.LastQty.Value.ToString();
                     tc.TradeDate = tcr.TradeDate.Value;
+                    tc.isReal = Program.ISREAL;
+                    tc.infoGroup = tcr.ToJSON();
+
                     if (tcr.IsSetNoSides())
                     {
                         int sidesCount = tcr.NoSides.Value;
@@ -2731,6 +2748,7 @@ GO
                             QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup sideGroup =
                                 new QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup();
                             tcr.GetGroup(i, sideGroup);
+                            
                             if (tcr.IsSetNoSides())
                             {
                                 int count = tcr.NoSides.Value;
@@ -2753,32 +2771,7 @@ GO
                                         tc.SecondaryClOrdID = group.SecondaryClOrdID.Value;
                                 }
                             }
-                            // Читаем поля внутри группы
-                            //if (sideGroup.IsSetSide())
-                            //{
-                            //    var sideField = new Side();
-                            //    sideGroup.GetField(sideField);
-                            //    tc.Side = sideField.Value.ToString();
-                            //}
-                            //else if (sideGroup.IsSetOrderID())
-                            //{
-                            //    var orderIdField = new OrderID();
-                            //    sideGroup.GetField(orderIdField);
-                            //    tc.OrderID = orderIdField.Value.ToString();
-                            //}
-                            //else if (sideGroup.IsSetClOrdID())
-                            //{
-                            //    var clOrderIdField = new ClOrdID();
-                            //    sideGroup.GetField(clOrderIdField);
-                            //    tc.ClOrdID = clOrderIdField.Value.ToString();
-                            //}
-                            //else if (sideGroup.IsSetSecondaryClOrdID())
-                            //{
-                            //    var secClOrderIdField = new SecondaryClOrdID();
-                            //    sideGroup.GetField(secClOrderIdField);
-                            //    tc.SecondaryClOrdID = secClOrderIdField.Value.ToString();
-                            //}
-
+               
                         }
                     }
 
@@ -2789,6 +2782,7 @@ GO
             catch (Exception ex)
             {
                 Console.WriteLine("Ошибка TradeCaptureReport - " + ex.Message);
+                recToLog("Ошибка TradeCaptureReport - " + ex.Message);
             }
         }
 
@@ -3056,6 +3050,7 @@ GO
             catch (Exception ex)
             {
                 if (isDebug) Console.WriteLine($"[SecurityDefinition] {ex.Message}");
+                recToLog("SecurityDefinition - " + ex.Message);
             }
         }
 
@@ -3090,7 +3085,8 @@ GO
             }
             catch (Exception ex)
             {
-                if (isDebug) Console.WriteLine($"[SecurityDefinition] {ex.Message}");
+                if (isDebug) Console.WriteLine($"[SecurityStatus] {ex.Message}");
+                recToLog("SecurityStatus - " + ex.Message);
             }
         }
 
@@ -3135,7 +3131,11 @@ GO
                     Console.WriteLine($"[AIX RefData] ApplicationMessageRequestAck: RefApplID={refApplId}, RefApplLastSeqNum={refApplLastSeqNum}");
                 }
             }
-            catch (Exception ex) { Console.WriteLine($"[ApplicationMessageRequestAck] {ex.Message}"); }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ApplicationMessageRequestAck] {ex.Message}");
+                recToLog("ApplicationMessageRequestAck - " + ex.Message);
+            }
         }
 
         private string GetSideName(char side)
@@ -3390,6 +3390,7 @@ GO
              }
             catch(Exception e) {
                 DailyLogger.Log($"[MarketDataIncrementalRefresh] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                recToLog("MarketDataIncrementalRefresh - " + e.Message);
             }
         }
         
@@ -3484,6 +3485,7 @@ GO
              }
             catch(Exception e) {
                 DailyLogger.Log($"[MarketDataSnapshotFullRefresh] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                recToLog("MarketDataSnapshotFullRefresh - " + e.Message);
             }
         }
 
@@ -3524,7 +3526,8 @@ GO
                 }
                 catch (Exception e)
                 {
-                    DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    DailyLogger.Log($"[OrderCancelReject] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                    recToLog("OrderCancelReject - " + e.Message);
                 }
             }
         }
@@ -4489,7 +4492,23 @@ GO
 
             return new string(result);
         }
-      
+        public void recToLog(string message)
+        {
+            try
+            {
+                string pathFile = AppDomain.CurrentDomain.BaseDirectory + @"\logs\logErrors.txt";
+                Log.Logger = new LoggerConfiguration()
+                    .WriteTo.File(pathFile,rollingInterval: RollingInterval.Day)
+                    .CreateLogger();
+                Log.Information(message);
+                Log.CloseAndFlush();
+            }
+            catch(Exception ex) 
+            {
+                Console.WriteLine("Ошибка записи в logErrors.txt - " + ex.ToString());
+            }
+
+        }
 
         #region Message creation functions
         private QuickFix.FIX44.NewOrderSingle QueryNewOrderSingle44()

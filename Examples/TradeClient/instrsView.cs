@@ -64,7 +64,7 @@ namespace TradeClient
     public class tradeCapture
     {
         public int ID { get; set; }
-        public DateTime? INPDATE { get; set; }
+        //public DateTime? INPDATE { get; set; }
         public byte? isReal { get; set; }
         public string? ClOrdID { get; set; }
         public byte? sendToAIS { get; set; }
@@ -115,6 +115,7 @@ namespace TradeClient
         public string? Yield { get; set; }
         public string? Commission { get; set; }
         public string? CommType { get; set; }
+        public string? infoGroup { get; set; }
     }
 
     public class instruments
