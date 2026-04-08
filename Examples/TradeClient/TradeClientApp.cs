@@ -2747,76 +2747,76 @@ GO
                         TradeDate = tcr.TradeDate.Value
                     };
 
-                    //if (tcr.IsSetNoSides())
-                    //{
-                    //    int sidesCount = tcr.NoSides.Value;
-                    //    for (int i = 0; i < sidesCount; i++)
-                    //    {
-                    //        var sideGroup = new QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup();
-                    //        tcr.GetGroup(i, sideGroup);
+                    if (tcr.IsSetNoSides())
+                    {
+                        int sidesCount = tcr.NoSides.Value;
+                        for (int i = 1; i < sidesCount; i++)
+                        {
+                            var sideGroup = new QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup();
+                            tcr.GetGroup(i, sideGroup);
 
-                    //        var side = new TradeCaptureSide();
+                            var side = new TradeCaptureSide();
 
-                    //        if (sideGroup.IsSetSide())
-                    //        {
-                    //            var sideField = new Side();
-                    //            sideGroup.GetField(sideField);
-                    //            side.Side = sideField.Value.ToString();
-                    //        }
+                            if (sideGroup.IsSetSide())
+                            {
+                                var sideField = new Side();
+                                sideGroup.GetField(sideField);
+                                side.Side = sideField.Value.ToString();
+                            }
 
-                    //        if (sideGroup.IsSetOrderID())
-                    //        {
-                    //            var orderIdField = new OrderID();
-                    //            sideGroup.GetField(orderIdField);
-                    //            side.OrderID = orderIdField.Value.ToString();
-                    //        }
+                            if (sideGroup.IsSetOrderID())
+                            {
+                                var orderIdField = new OrderID();
+                                sideGroup.GetField(orderIdField);
+                                side.OrderID = orderIdField.Value.ToString();
+                            }
 
-                    //        if (sideGroup.IsSetClOrdID())
-                    //        {
-                    //            var clOrderIdField = new ClOrdID();
-                    //            sideGroup.GetField(clOrderIdField);
-                    //            side.ClOrdID = clOrderIdField.Value.ToString();
-                    //        }
+                            if (sideGroup.IsSetClOrdID())
+                            {
+                                var clOrderIdField = new ClOrdID();
+                                sideGroup.GetField(clOrderIdField);
+                                side.ClOrdID = clOrderIdField.Value.ToString();
+                            }
 
-                    //        if (sideGroup.IsSetSecondaryClOrdID())
-                    //        {
-                    //            var secClOrderIdField = new SecondaryClOrdID();
-                    //            sideGroup.GetField(secClOrderIdField);
-                    //            side.SecondaryClOrdID = secClOrderIdField.Value.ToString();
-                    //        }
+                            if (sideGroup.IsSetSecondaryClOrdID())
+                            {
+                                var secClOrderIdField = new SecondaryClOrdID();
+                                sideGroup.GetField(secClOrderIdField);
+                                side.SecondaryClOrdID = secClOrderIdField.Value.ToString();
+                            }
 
-                    //        // Обработка участников сделки (PartyIDs)
-                    //        if (sideGroup.IsSetNoPartyIDs())
-                    //        {
-                    //            int partyCount = sideGroup.GetInt(Tags.NoPartyIDs);
-                    //            for (int j = 0; j < partyCount; j++)
-                    //            {
-                    //                var partyGroup = new QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup.NoPartyIDsGroup();
-                    //                sideGroup.GetGroup(j, partyGroup);
+                            // Обработка участников сделки (PartyIDs)
+                            if (sideGroup.IsSetNoPartyIDs())
+                            {
+                                int partyCount = sideGroup.GetInt(Tags.NoPartyIDs);
+                                for (int j = 0; j < partyCount; j++)
+                                {
+                                    var partyGroup = new QuickFix.FIX50SP2.TradeCaptureReport.NoSidesGroup.NoPartyIDsGroup();
+                                    sideGroup.GetGroup(j, partyGroup);
 
-                    //                var party = new TradeCaptureParty();
+                                    var party = new TradeCaptureParty();
 
-                    //                if (partyGroup.IsSetPartyID())
-                    //                {
-                    //                    var partyIdField = new PartyID();
-                    //                    partyGroup.GetField(partyIdField);
-                    //                    party.PartyID = partyIdField.Value;
-                    //                }
+                                    if (partyGroup.IsSetPartyID())
+                                    {
+                                        var partyIdField = new PartyID();
+                                        partyGroup.GetField(partyIdField);
+                                        party.PartyID = partyIdField.Value;
+                                    }
 
-                    //                if (partyGroup.IsSetPartyRole())
-                    //                {
-                    //                    var partyRoleField = new PartyRole();
-                    //                    partyGroup.GetField(partyRoleField);
-                    //                    party.PartyRole = partyRoleField.Value.ToString();
-                    //                }
+                                    if (partyGroup.IsSetPartyRole())
+                                    {
+                                        var partyRoleField = new PartyRole();
+                                        partyGroup.GetField(partyRoleField);
+                                        party.PartyRole = partyRoleField.Value.ToString();
+                                    }
 
-                    //                side.Parties.Add(party);
-                    //            }
-                    //        }
+                                    side.Parties.Add(party);
+                                }
+                            }
 
-                    //        //tc.Sides.Add(side);
-                    //    }
-                    //}
+                            //tc.Sides.Add(side);
+                        }
+                    }
 
                     db.TradeCapture.Add(tc);
                     db.SaveChanges();
