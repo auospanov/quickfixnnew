@@ -5,6 +5,7 @@ using QuickFix;
 using QuickFix.Fields;
 using QuickFix.Logger;
 using QuickFix.Store;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -42,6 +43,7 @@ namespace TradeClient
                 var ex = args.ExceptionObject as Exception;
                 Console.WriteLine($"[AppDomain] Unhandled exception: {ex?.Message}");
                 DailyLogger.Log($"[AppDomain] Unhandled exception: {ex?.Message}");
+                recToLog($"[AppDomain] Unhandled exception: {ex?.Message}");
             };
 
             TaskScheduler.UnobservedTaskException += (sender, args) =>
@@ -95,6 +97,7 @@ namespace TradeClient
             Console.WriteLine("=============");
             Console.WriteLine();
             Console.WriteLine("Start program");
+            recToLog("Start program");
 
             //if (args.Length != 1)
             //{
@@ -241,6 +244,8 @@ namespace TradeClient
             {
                 Console.WriteLine(e.Message);
                 Console.WriteLine(e.StackTrace);
+                recToLog(e.Message);
+                recToLog(e.StackTrace);
             }
             finally
             {
@@ -338,7 +343,25 @@ namespace TradeClient
             catch (Exception ex)
             {
                 Console.WriteLine("Ошибка при обновлении пароля: " + ex.Message);
+                recToLog("Ошибка при обновлении пароля: " + ex.Message);
             }
+        }
+        public static void recToLog(string message)
+        {
+            try
+            {
+                string pathFile = AppDomain.CurrentDomain.BaseDirectory + @"\logs\logErrors.txt";
+                Log.Logger = new LoggerConfiguration()
+                    .WriteTo.File(pathFile, rollingInterval: RollingInterval.Day)
+                    .CreateLogger();
+                Log.Information(message);
+                Log.CloseAndFlush();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Ошибка записи в logErrors.txt - " + ex.ToString());
+            }
+
         }
     }
 }

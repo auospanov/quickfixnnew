@@ -351,6 +351,7 @@ GO
             catch (Exception ex)
             {
                 DailyLogger.Log($"[FixGetUpdateDataNew] {ex.Message}");
+                
                 return ("-1", "");
             }
         }
@@ -429,12 +430,13 @@ GO
             catch (Exception ex)
             {
                 if (isDebug) Console.WriteLine($"[HbGetOrdersForSend] Oracle: {ex.Message}");
+                recToLog("HbGetOrdersForSend - " + ex.Message);
             }
         }
 
         private void GetOrdersForSendTimerTick(object state)
         {
-            try { HbGetOrdersForSend(); } catch (Exception ex) { if (isDebug) Console.WriteLine($"[GetOrdersForSend] {ex.Message}"); }
+            try { HbGetOrdersForSend(); } catch (Exception ex) { if (isDebug) Console.WriteLine($"[GetOrdersForSendTimerTick] {ex.Message}"); }
         }
 
         private void TimerTick(object state)
@@ -527,6 +529,7 @@ GO
                         catch (Exception backupErr)
                         {
                             Console.WriteLine($"[TimerTick] Ошибка при сохранении резервной копии: {backupErr.Message}");
+                            recToLog("TimerTick Ошибка при сохранении резервной копии - " + backupErr.Message);
                         }
                     }
 
@@ -556,12 +559,20 @@ GO
                     if (sessionToLogout != null && sessionToLogout.IsLoggedOn)
                     {
                         sessionToLogout.Logout();
-                        if (isDebug) Console.WriteLine("Session logout performed before exit");
+                        if (isDebug)
+                        {
+                            Console.WriteLine("Session logout performed before exit");
+                            recToLog("Session logout performed before exit");
+                        }
                     }
                 }
                 catch (Exception logoutErr)
                 {
-                    if (isDebug) Console.WriteLine($"Error during logout: {logoutErr.Message}");
+                    if (isDebug)
+                    {
+                        Console.WriteLine($"Error during logout: {logoutErr.Message}");
+                        recToLog($"Error during logout: {logoutErr.Message}");
+                    }
                 }
                 _ = ExitAfterDelayAsync(5000);
 
@@ -649,7 +660,11 @@ GO
             }
             else
             {
-                if (isDebug) Console.WriteLine("Session is not active. Skipping sending.");
+                if (isDebug)
+                {
+                    Console.WriteLine("Session is not active. Skipping sending.");
+                    recToLog("Session is not active. Skipping sending.");
+                }
             }
         }
 
@@ -675,7 +690,11 @@ GO
                 }
                 catch (Exception e)
                 {
-                    if (isDebug) Console.WriteLine($"[OnLogon] AIX Reference Data subscription: {e.Message}");
+                    if (isDebug)
+                    {
+                        Console.WriteLine($"[OnLogon] AIX Reference Data subscription: {e.Message}");
+                        recToLog($"[OnLogon] AIX Reference Data subscription: {e.Message}");
+                    }
                 }
 
             //запрос стутуса торгов
@@ -728,11 +747,22 @@ GO
                         period: _getOrdersForSendIntervalMilliseconds
                     );
                 }
-                catch (Exception ex) { if (isDebug) Console.WriteLine($"[OnLogon] GetOrdersForSend timer: {ex.Message}"); }
+                catch (Exception ex) 
+                {
+                    if (isDebug)
+                    {
+                        Console.WriteLine($"[OnLogon] GetOrdersForSend timer: {ex.Message}");
+                        recToLog($"[OnLogon] GetOrdersForSend timer: {ex.Message}");
+                    }
+                }
             }
 
             //SendMarketDataRequest(sessionId);
-            if (isDebug) Console.WriteLine("Logon - " + sessionId);
+            if (isDebug)
+            {
+                Console.WriteLine("Logon - " + sessionId);
+                recToLog("Logon - " + sessionId);
+            }
         }
         public void OnLogout(SessionID sessionId)
         {
@@ -770,6 +800,7 @@ GO
                 catch (Exception e)
                 {
                     DailyLogger.Log($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(message));
+                    recToLog($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(message));
                 }
             }
             else if (message is QuickFix.FIXT11.Reject m)
@@ -808,6 +839,7 @@ GO
                     catch (Exception e)
                     {
                         DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
+                        recToLog($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
                     }
                 }
 
@@ -849,6 +881,7 @@ GO
                     catch (Exception e)
                     {
                         DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(rj));
+                        recToLog($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(rj));
                     }
                 }
 
@@ -1008,6 +1041,7 @@ GO
                     string logMsg = $"[SEQUENCE ERROR] Exception during sequence sync from Logout: {ex.Message}";
                     Console.WriteLine(logMsg);
                     DailyLogger.Log(logMsg);
+                    recToLog(logMsg);
                 }
             }
 
@@ -1036,7 +1070,11 @@ GO
                 }
                 else
                 {
-                    if (isDebug) Console.WriteLine("Username or Password not found in settings");
+                    if (isDebug)
+                    {
+                        Console.WriteLine("Username or Password not found in settings");
+                        recToLog("Username or Password not found in settings");
+                    }
                 }
                 if (Program.isChangePassword)
                 {
@@ -1131,6 +1169,7 @@ GO
                             string logMsg = $"[SEQUENCE ERROR] Could not extract expected sequence number from error: {errorMessage}";
                             Console.WriteLine(logMsg);
                             DailyLogger.Log(logMsg);
+                            recToLog(logMsg);
                         }
                     }
                     catch (Exception syncEx)
@@ -1138,6 +1177,7 @@ GO
                         string logMsg = $"[SEQUENCE ERROR] Exception during sequence sync: {syncEx.Message}";
                         Console.WriteLine(logMsg);
                         DailyLogger.Log(logMsg);
+                        recToLog(logMsg);
                     }
                     
                     if (isDebug)
@@ -1215,7 +1255,11 @@ GO
             }
 
             if (isDebug) Console.WriteLine();
-            if(isDebug) Console.WriteLine("OUT: " + message.ConstructString());
+            if (isDebug) 
+            {
+                Console.WriteLine("OUT: " + message.ConstructString());
+                recToLog("OUT: " + message.ConstructString());
+            }
         }
         #endregion
         public class FixOrder
@@ -1426,11 +1470,16 @@ GO
                 };
                 string json = JsonConvert.SerializeObject(order, settings);
                 var res = FixGetUpdateDataNew(json);
-                if (isDebug && res.resCode != "0") Console.WriteLine($"[WriteOrder] resCode={res.resCode} result={res.resultString}");
+                if (isDebug && res.resCode != "0")
+                {
+                    Console.WriteLine($"[WriteOrder] resCode={res.resCode} result={res.resultString}");
+                    recToLog($"[WriteOrder] resCode={res.resCode} result={res.resultString}");
+                }
             }
             catch (Exception ex)
             {
                 DailyLogger.Log($"[WriteOrder] {ex.Message}");
+                recToLog($"[WriteOrder] {ex.Message}");
             }
         }
 
@@ -1490,6 +1539,7 @@ GO
             catch (Exception ex)
             {
                 DailyLogger.Log($"[WriteCancelRejectToAIS] {ex.Message}");
+                recToLog($"[WriteCancelRejectToAIS] {ex.Message}");
             }
         }
 
