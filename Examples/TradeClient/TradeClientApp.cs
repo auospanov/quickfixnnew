@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
+using Oracle.ManagedDataAccess.Client;
 using QuickFix;
 using QuickFix.Fields;
 using QuickFix.Logger;
 using QuickFix.Store;
 using QuickFix.Transport;
+using Serilog;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -21,12 +24,10 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using Oracle.ManagedDataAccess.Client;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 using static System.Collections.Specialized.BitVector32;
 using ApplicationException = System.ApplicationException;
 using Exception = System.Exception;
-using Serilog;
 
 
 namespace TradeClient
@@ -438,90 +439,99 @@ GO
         {
             try { HbGetOrdersForSend(); } catch (Exception ex) { if (isDebug) Console.WriteLine($"[GetOrdersForSendTimerTick] {ex.Message}"); }
         }
-
         private void TimerTick(object state)
         {
-            if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1") {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        List<quotesSimple> tempList = new List<quotesSimple>();
-                        lock (quotesSimples)
-                        {
-                            tempList = quotesSimples.ToList();
-                            quotesSimples = new ConcurrentBag<quotesSimple>();
-                        }
-                        tempList = tempList.OrderBy(s => int.Parse(s.msgNum)).ToList();
-                        wrapper.Context.quotesSimple.AddRange(tempList);
-                        wrapper.Context.SaveChanges();
-                }
-            }
-            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1") {
+            if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1")
+            {
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
-                    List<orders> tempList = null; // Объявляем вне try, чтобы использовать в catch
-                    try {
+                    List<quotesSimple> tempList = new List<quotesSimple>();
+                    lock (quotesSimples)
+                    {
+                        tempList = quotesSimples.ToList();
+                        quotesSimples = new ConcurrentBag<quotesSimple>();
+                    }
+                    tempList = tempList.OrderBy(s => int.Parse(s.msgNum)).ToList();
+                    wrapper.Context.quotesSimple.AddRange(tempList);
+                    wrapper.Context.SaveChanges();
+                }
+            }
+
+            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            {
+                using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                {
+                    List<orders> tempList = null;
+                    try
+                    {
                         tempList = new List<orders>();
-                        
-                        // Сначала загружаем данные из файла резервной копии, если он существует
+
+                        // Загружаем из backup
                         List<orders> ordersFromBackup = LoadOrdersFromBackupFile();
                         if (ordersFromBackup != null && ordersFromBackup.Count > 0)
                         {
                             tempList.AddRange(ordersFromBackup);
                         }
-                        
-                        // Затем добавляем данные из кэша
+
+                        // Добавляем из кэша
                         lock (OrdersCache)
                         {
                             tempList.AddRange(OrdersCache.ToList());
                             OrdersCache = new ConcurrentBag<orders>();
                         }
-                        
+
                         tempList = tempList.OrderBy(s => s.msgNum).ToList();
+
+                        // 🔥 ОБРАБОТКА leavesQty
+                        foreach (var order in tempList)
+                        {
+                            if (!string.IsNullOrEmpty(order.leavesQty.ToString()) && order.leavesQty.ToString().Length > 18)
+                            {
+                                recToLog("занулили " + order.leavesQty.ToString());
+                                order.leavesQty = 0; // или null
+                            }                            
+                        }
+
                         if (tempList.Count() > 0)
                         {
                             wrapper.Context.orders.AddRange(tempList);
                             wrapper.Context.SaveChanges();
-                            
-                            // Если запись прошла успешно, удаляем файл резервной копии
+
                             if (File.Exists(OrdersBackupFileName))
                             {
                                 File.Delete(OrdersBackupFileName);
                             }
-                            
-                            if (!string.IsNullOrEmpty(Program.urlService)) {
+
+                            if (!string.IsNullOrEmpty(Program.urlService))
+                            {
                                 OrderSender.SendOrdersAsyncFireAndForget(JsonConvert.SerializeObject(tempList));
                             }
                         }
                     }
                     catch (Exception err)
                     {
-                        string mes = err.InnerException.Message;
+                        string mes = err.InnerException?.Message ?? err.Message;
                         Console.Write($"Ошибка записи в базу данных пачки {mes}");
                         recToLog(mes);
-                        // При ошибке записи в БД сохраняем данные в файл резервной копии
+
                         try
                         {
-                            // Используем tempList, который уже был собран до ошибки
-                            // Если tempList пуст или null, пытаемся восстановить из кэша
                             if (tempList == null || tempList.Count == 0)
                             {
                                 tempList = new List<orders>();
-                                
-                                // Загружаем существующие данные из файла
+
                                 List<orders> ordersFromBackup = LoadOrdersFromBackupFile();
                                 if (ordersFromBackup != null && ordersFromBackup.Count > 0)
                                 {
                                     tempList.AddRange(ordersFromBackup);
                                 }
-                                
-                                // Добавляем данные из кэша, которые не удалось записать
+
                                 lock (OrdersCache)
                                 {
                                     tempList.AddRange(OrdersCache.ToList());
                                 }
                             }
-                            
-                            // Сохраняем объединенный список в файл
+
                             if (tempList != null && tempList.Count > 0)
                             {
                                 SaveOrdersToBackupFile(tempList);
@@ -533,30 +543,28 @@ GO
                             recToLog("TimerTick Ошибка при сохранении резервной копии - " + backupErr.Message);
                         }
                     }
-
                 }
             }
 
             if (isDebug)
                 Console.WriteLine($"[{DateTime.Now}] Timer ticked!");
+
             if (isStop(Program.GetValueByKey(Program.cfg, "ConnectionString")))
             {
-                // Выполняем logout перед выходом
                 try
                 {
                     Session? sessionToLogout = null;
-                    // Сначала пробуем использовать существующую сессию
+
                     if (_session != null && _session.IsLoggedOn)
                     {
                         sessionToLogout = _session;
                     }
-                    // Если сессия не доступна, получаем через sessionPasswords
                     else if (_sessionPasswords.Count > 0)
                     {
                         var sessionId = _sessionPasswords.Keys.First();
                         sessionToLogout = Session.LookupSession(sessionId);
                     }
-                    
+
                     if (sessionToLogout != null && sessionToLogout.IsLoggedOn)
                     {
                         sessionToLogout.Logout();
@@ -575,26 +583,10 @@ GO
                         recToLog($"Error during logout: {logoutErr.Message}");
                     }
                 }
+
                 _ = ExitAfterDelayAsync(5000);
-
-
-                //Environment.Exit(0);
             }
-            //try
-            //{
-            //    if (Program.isMustStartedAfterChangePassword)
-            //    {
-            //        Thread.Sleep(5000);
-            //        var sessionId = _sessionPasswords.Keys.First();
-            //        var session = Session.LookupSession(sessionId);
-            //        session.Logon();
-            //        Program.isMustStartedAfterChangePassword = false;
-            //    }
-            //}
-            //catch(Exception err)
-            //{
 
-            //}
             if (_session != null && _session.IsLoggedOn)
             {
                 if (isDebug) Console.WriteLine("Session active. You can send periodic messages here.");
@@ -668,6 +660,235 @@ GO
                 }
             }
         }
+        //private void TimerTick(object state)
+        //{
+        //    if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1") {
+        //            using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+        //            {
+        //                List<quotesSimple> tempList = new List<quotesSimple>();
+        //                lock (quotesSimples)
+        //                {
+        //                    tempList = quotesSimples.ToList();
+        //                    quotesSimples = new ConcurrentBag<quotesSimple>();
+        //                }
+        //                tempList = tempList.OrderBy(s => int.Parse(s.msgNum)).ToList();
+        //                wrapper.Context.quotesSimple.AddRange(tempList);
+        //                wrapper.Context.SaveChanges();
+        //        }
+        //    }
+        //    if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1") {
+        //        using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+        //        {
+        //            List<orders> tempList = null; // Объявляем вне try, чтобы использовать в catch
+        //            try {
+        //                tempList = new List<orders>();
+
+        //                // Сначала загружаем данные из файла резервной копии, если он существует
+        //                List<orders> ordersFromBackup = LoadOrdersFromBackupFile();
+        //                if (ordersFromBackup != null && ordersFromBackup.Count > 0)
+        //                {
+        //                    tempList.AddRange(ordersFromBackup);
+        //                }
+
+        //                // Затем добавляем данные из кэша
+        //                lock (OrdersCache)
+        //                {
+        //                    tempList.AddRange(OrdersCache.ToList());
+        //                    OrdersCache = new ConcurrentBag<orders>();
+        //                }
+
+        //                tempList = tempList.OrderBy(s => s.msgNum).ToList();
+        //                if (tempList.Count() > 0)
+        //                {
+        //                    wrapper.Context.orders.AddRange(tempList);
+        //                    wrapper.Context.SaveChanges();
+
+        //                    // Если запись прошла успешно, удаляем файл резервной копии
+        //                    if (File.Exists(OrdersBackupFileName))
+        //                    {
+        //                        File.Delete(OrdersBackupFileName);
+        //                    }
+
+        //                    if (!string.IsNullOrEmpty(Program.urlService)) {
+        //                        OrderSender.SendOrdersAsyncFireAndForget(JsonConvert.SerializeObject(tempList));
+        //                    }
+        //                }
+        //            }
+        //            catch (Exception err)
+        //            {
+        //                string mes = err.InnerException.Message;
+        //                Console.Write($"Ошибка записи в базу данных пачки {mes}");
+        //                recToLog(mes);
+        //                // При ошибке записи в БД сохраняем данные в файл резервной копии
+        //                try
+        //                {
+        //                    // Используем tempList, который уже был собран до ошибки
+        //                    // Если tempList пуст или null, пытаемся восстановить из кэша
+        //                    if (tempList == null || tempList.Count == 0)
+        //                    {
+        //                        tempList = new List<orders>();
+
+        //                        // Загружаем существующие данные из файла
+        //                        List<orders> ordersFromBackup = LoadOrdersFromBackupFile();
+        //                        if (ordersFromBackup != null && ordersFromBackup.Count > 0)
+        //                        {
+        //                            tempList.AddRange(ordersFromBackup);
+        //                        }
+
+        //                        // Добавляем данные из кэша, которые не удалось записать
+        //                        lock (OrdersCache)
+        //                        {
+        //                            tempList.AddRange(OrdersCache.ToList());
+        //                        }
+        //                    }
+
+        //                    // Сохраняем объединенный список в файл
+        //                    if (tempList != null && tempList.Count > 0)
+        //                    {
+        //                        SaveOrdersToBackupFile(tempList);
+        //                    }
+        //                }
+        //                catch (Exception backupErr)
+        //                {
+        //                    Console.WriteLine($"[TimerTick] Ошибка при сохранении резервной копии: {backupErr.Message}");
+        //                    recToLog("TimerTick Ошибка при сохранении резервной копии - " + backupErr.Message);
+        //                }
+        //            }
+
+        //        }
+        //    }
+
+        //    if (isDebug)
+        //        Console.WriteLine($"[{DateTime.Now}] Timer ticked!");
+        //    if (isStop(Program.GetValueByKey(Program.cfg, "ConnectionString")))
+        //    {
+        //        // Выполняем logout перед выходом
+        //        try
+        //        {
+        //            Session? sessionToLogout = null;
+        //            // Сначала пробуем использовать существующую сессию
+        //            if (_session != null && _session.IsLoggedOn)
+        //            {
+        //                sessionToLogout = _session;
+        //            }
+        //            // Если сессия не доступна, получаем через sessionPasswords
+        //            else if (_sessionPasswords.Count > 0)
+        //            {
+        //                var sessionId = _sessionPasswords.Keys.First();
+        //                sessionToLogout = Session.LookupSession(sessionId);
+        //            }
+
+        //            if (sessionToLogout != null && sessionToLogout.IsLoggedOn)
+        //            {
+        //                sessionToLogout.Logout();
+        //                if (isDebug)
+        //                {
+        //                    Console.WriteLine("Session logout performed before exit");
+        //                    recToLog("Session logout performed before exit");
+        //                }
+        //            }
+        //        }
+        //        catch (Exception logoutErr)
+        //        {
+        //            if (isDebug)
+        //            {
+        //                Console.WriteLine($"Error during logout: {logoutErr.Message}");
+        //                recToLog($"Error during logout: {logoutErr.Message}");
+        //            }
+        //        }
+        //        _ = ExitAfterDelayAsync(5000);
+
+
+        //        //Environment.Exit(0);
+        //    }
+        //    //try
+        //    //{
+        //    //    if (Program.isMustStartedAfterChangePassword)
+        //    //    {
+        //    //        Thread.Sleep(5000);
+        //    //        var sessionId = _sessionPasswords.Keys.First();
+        //    //        var session = Session.LookupSession(sessionId);
+        //    //        session.Logon();
+        //    //        Program.isMustStartedAfterChangePassword = false;
+        //    //    }
+        //    //}
+        //    //catch(Exception err)
+        //    //{
+
+        //    //}
+        //    if (_session != null && _session.IsLoggedOn)
+        //    {
+        //        if (isDebug) Console.WriteLine("Session active. You can send periodic messages here.");
+
+        //        if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1")
+        //        {
+        //            using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+        //            {
+        //                var db = wrapper.Context;
+        //                var intrsView = db.instrsView.ToList();
+
+        //                var updatedInstrs = new List<instrsView>();
+
+        //                foreach (var instrView in intrsView)
+        //                {
+        //                    bool exists = instrs.Any(i => i.symbol == instrView.symbol);
+
+        //                    if (!exists)
+        //                    {
+        //                        try
+        //                        {
+        //                            string requestId = SendMarketDataRequest(_session.SessionID, instrView);
+
+        //                            updatedInstrs.Add(new instrsView
+        //                            {
+        //                                symbol = instrView.symbol,
+        //                                codeMubasher = instrView.codeMubasher,
+        //                                requestId = requestId
+        //                            });
+        //                        }
+        //                        catch (Exception ex)
+        //                        {
+        //                            if (isDebug) Console.WriteLine($"Ошибка при подписке на инструмент {instrView.symbol}: {ex.Message}");
+        //                        }
+        //                    }
+        //                    else
+        //                    {
+        //                        var existingInstr = instrs.First(i => i.symbol == instrView.symbol);
+        //                        updatedInstrs.Add(existingInstr);
+        //                    }
+        //                }
+
+        //                foreach (var oldInstr in instrs)
+        //                {
+        //                    bool stillExists = intrsView.Any(i => i.symbol == oldInstr.symbol);
+
+        //                    if (!stillExists)
+        //                    {
+        //                        try
+        //                        {
+        //                            SendMarketDataUnsubscribe(_session.SessionID, oldInstr);
+        //                            if (isDebug) Console.WriteLine($"Отписка от инструмента: {oldInstr.symbol}");
+        //                        }
+        //                        catch (Exception ex)
+        //                        {
+        //                            if (isDebug) Console.WriteLine($"Ошибка при отписке от инструмента {oldInstr.symbol}: {ex.Message}");
+        //                        }
+        //                    }
+        //                }
+
+        //                instrs = updatedInstrs;
+        //            }
+        //        }
+        //    }
+        //    else
+        //    {
+        //        if (isDebug)
+        //        {
+        //            Console.WriteLine("Session is not active. Skipping sending.");
+        //            recToLog("Session is not active. Skipping sending.");
+        //        }
+        //    }
+        //}
 
         public void OnLogon(SessionID sessionId)
         {
