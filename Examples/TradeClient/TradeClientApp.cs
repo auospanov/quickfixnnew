@@ -495,8 +495,9 @@ GO
                     }
                     catch (Exception err)
                     {
-                        string mes = err.StackTrace;
+                        string mes = err.InnerException.Message;
                         Console.Write($"Ошибка записи в базу данных пачки {mes}");
+                        recToLog(mes);
                         // При ошибке записи в БД сохраняем данные в файл резервной копии
                         try
                         {
