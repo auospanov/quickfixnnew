@@ -103,6 +103,58 @@ namespace TradeClient
 
         #region IApplication interface overrides
         private readonly Dictionary<SessionID, string> _sessionPasswords = new();
+        private readonly object _sessionActivityFileSync = new();
+
+        private string GetSessionActivityFilePath()
+        {
+            string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "session-state");
+            return Path.Combine(dir, "last-active-utc.txt");
+        }
+
+        private void UpdateLastSessionActivityUtc(DateTime? activityTimeUtc = null)
+        {
+            try
+            {
+                string path = GetSessionActivityFilePath();
+                string? dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir))
+                    Directory.CreateDirectory(dir);
+
+                DateTime utc = activityTimeUtc ?? DateTime.UtcNow;
+                lock (_sessionActivityFileSync)
+                {
+                    File.WriteAllText(path, utc.ToString("O", CultureInfo.InvariantCulture));
+                }
+            }
+            catch (Exception ex)
+            {
+                if (isDebug) Console.WriteLine($"[SessionActivity] update error: {ex.Message}");
+            }
+        }
+
+        private DateTime? GetLastSessionActivityUtc()
+        {
+            try
+            {
+                string path = GetSessionActivityFilePath();
+                if (!File.Exists(path))
+                    return null;
+
+                string raw;
+                lock (_sessionActivityFileSync)
+                {
+                    raw = File.ReadAllText(path).Trim();
+                }
+
+                if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTime parsed))
+                    return parsed.ToUniversalTime();
+            }
+            catch (Exception ex)
+            {
+                if (isDebug) Console.WriteLine($"[SessionActivity] read error: {ex.Message}");
+            }
+            return null;
+        }
 
         public void OnCreate(SessionID sessionId)
         {
@@ -892,6 +944,7 @@ GO
 
         public void OnLogon(SessionID sessionId)
         {
+            UpdateLastSessionActivityUtc();
             // Подписка на Reference Data (AIX): один запрос — полный snapshot всех инструментов (FIX RefData AIX v2.0)
             // Application Message Request (BW): RefApplID=R, ApplEndSeqNum=0. Подписка только 1 раз за сессию.
             if (Program.GetValueByKey(Program.cfg, "IsInstrRequest") == "1" && Program.EXCH_CODE == "AIX")
@@ -988,6 +1041,7 @@ GO
         }
         public void OnLogout(SessionID sessionId)
         {
+            UpdateLastSessionActivityUtc();
             if (isDebug) Console.WriteLine("Logout - " + sessionId);
             try
             {
@@ -1004,6 +1058,7 @@ GO
 
         public void FromAdmin(Message message, SessionID sessionId)
         {
+            UpdateLastSessionActivityUtc();
             if (isDebug) Console.WriteLine("FromAdmin - " + message.ToString());
 
 
@@ -1270,6 +1325,7 @@ GO
         }
         public void ToAdmin(Message message, SessionID sessionId)
         {
+            UpdateLastSessionActivityUtc();
             if (message.Header.GetString(QuickFix.Fields.Tags.MsgType) == QuickFix.Fields.MsgType.LOGON)
             {
                 var sessionConfig = _settings.Get(sessionId);
@@ -1317,15 +1373,29 @@ GO
                 if (sessionConfig.Has("ResetSeqNumFlag"))
                 {
                     bool val = sessionConfig.GetString("ResetSeqNumFlag") == "Y" ? true : false;
-                    if(val == false && DateTime.Now.Date != DateTime.UtcNow.Date)
+                    if (val == false)
                     {
-                        try 
-                        { 
-                            val = sessionConfig.GetString("ResetOnEOD") == "Y" ? true : false; 
-                        }
-                        catch(Exception err)
+                        DateTime? lastSessionActivityUtc = GetLastSessionActivityUtc();
+                        if (lastSessionActivityUtc.HasValue && lastSessionActivityUtc.Value.Date != DateTime.UtcNow.Date)
                         {
-
+                            try
+                            {
+                                val = sessionConfig.GetString("ResetOnEOD") == "Y" ? true : false;
+                            }
+                            catch (Exception err)
+                            {
+                            }
+                        }
+                        else if (!lastSessionActivityUtc.HasValue)
+                        {
+                            // Если файл еще не создан, оставляем прежнее поведение fallback.
+                            try
+                            {
+                                val = sessionConfig.GetString("ResetOnEOD") == "Y" ? true : false;
+                            }
+                            catch (Exception err)
+                            {
+                            }
                         }
                     }
                     message.SetField(new ResetSeqNumFlag(val));
@@ -1343,6 +1413,7 @@ GO
         }
         public void FromApp(Message message, SessionID sessionId)
         {
+            UpdateLastSessionActivityUtc();
             if (isDebug) Console.WriteLine("IN:  " + message.ConstructString());
             try
             {
