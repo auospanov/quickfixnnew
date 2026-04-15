@@ -1061,7 +1061,39 @@ GO
             UpdateLastSessionActivityUtc();
             if (isDebug) Console.WriteLine("FromAdmin - " + message.ToString());
 
-
+            if (message.Header.GetString(Tags.MsgType) == MsgType.LOGON)
+            {
+                // FIXT.1.1: ответ Logon от контрагента может содержать 789=NextExpectedMsgSeqNum — следующий исходящий MsgSeqNum от клиента.
+                if (message.IsSetField(Tags.NextExpectedMsgSeqNum))
+                {
+                    try
+                    {
+                        ulong nextExpected = message.GetULong(Tags.NextExpectedMsgSeqNum);
+                        Session? session = Session.LookupSession(sessionId);
+                        if (session is not null)
+                        {
+                            ulong before = session.NextSenderMsgSeqNum;
+                            session.NextSenderMsgSeqNum = nextExpected;
+                            string lastProc = message.IsSetField(Tags.LastMsgSeqNumProcessed)
+                                ? message.GetULong(Tags.LastMsgSeqNumProcessed).ToString()
+                                : "?";
+                            string logMsg =
+                                $"[SEQUENCE SYNC] Logon reply: 789 NextExpectedMsgSeqNum={nextExpected}, 369 LastMsgSeqNumProcessed={lastProc}; " +
+                                $"NextSenderMsgSeqNum {before} -> {nextExpected}";
+                            Console.WriteLine(logMsg);
+                            DailyLogger.Log(logMsg);
+                            recToLog(logMsg);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        string logMsg = $"[SEQUENCE SYNC] Logon 789 sync failed: {ex.Message}";
+                        Console.WriteLine(logMsg);
+                        DailyLogger.Log(logMsg);
+                        recToLog(logMsg);
+                    }
+                }
+            }
 
             if (message is QuickFix.FIXT11.Heartbeat || message is QuickFix.FIX44.Heartbeat)
             {
@@ -1444,20 +1476,18 @@ GO
                                 var session = Session.LookupSession(sessionId);
                                 if (session != null)
                                 {
-                                    // Устанавливаем NextTargetMsgSeqNum на ожидаемое значение сервера
-                                    // Это то значение, которое сервер ожидает получить от нас
-                                    session.NextTargetMsgSeqNum = expectedSeqNum;
-                                    
-                                    string logMsg = $"[SEQUENCE SYNC] Synchronized sequence number for session {sessionId}. " +
-                                                   $"Set NextTargetMsgSeqNum to {expectedSeqNum} (server expecting: {expectedSeqNum}). " +
+                                    // "expecting N" в типичном MsgSeqNum too low для инициатора — номер следующего исходящего от нас (не входящего).
+                                    ulong before = session.NextSenderMsgSeqNum;
+                                    session.NextSenderMsgSeqNum = expectedSeqNum;
+
+                                    string logMsg = $"[SEQUENCE SYNC] MsgSeqNum too low: set NextSenderMsgSeqNum {before} -> {expectedSeqNum}. " +
                                                    $"Error: {errorMessage}";
                                     Console.WriteLine(logMsg);
                                     DailyLogger.Log(logMsg);
-                                    
+                                    recToLog(logMsg);
+
                                     if (isDebug)
-                                    {
-                                        Console.WriteLine($"==Sequence synchronized: NextTargetMsgSeqNum = {session.NextTargetMsgSeqNum}==");
-                                    }
+                                        Console.WriteLine($"==Sequence synchronized: NextSenderMsgSeqNum = {session.NextSenderMsgSeqNum}==");
                                 }
                                 else
                                 {
