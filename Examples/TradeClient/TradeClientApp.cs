@@ -2500,6 +2500,7 @@ GO
 
                                         string partyId = partyGroup.GetString(QuickFix.Fields.Tags.PartyID);
                                         ord.partyId = partyId;
+                                        ord.investor = partyId; //add 15.04.2026
 
                                         string partySource = partyGroup.GetString(QuickFix.Fields.Tags.PartyIDSource);
                                         ord.partyIdSource = partySource;
@@ -4804,7 +4805,7 @@ GO
                             partyIdGroup.SetField(new PartyRole(int.Parse("1")));
                             ord1.AddGroup(partyIdGroup);
                         }
-                        partyIdGroup.SetField(new PartyID(r.SenderSubID));
+                        partyIdGroup.SetField(new PartyID(r.Investor)); //r.SenderSubID 15.04.2026
                         partyIdGroup.SetField(new PartyIDSource(char.Parse(r.PartyIDSource)));
                         partyIdGroup.SetField(new PartyRole(int.Parse(r.PartyRole)));
                         ord1.AddGroup(partyIdGroup);
