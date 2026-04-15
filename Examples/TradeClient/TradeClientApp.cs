@@ -1405,31 +1405,31 @@ GO
                 if (sessionConfig.Has("ResetSeqNumFlag"))
                 {
                     bool val = sessionConfig.GetString("ResetSeqNumFlag") == "Y" ? true : false;
-                    if (val == false)
-                    {
-                        DateTime? lastSessionActivityUtc = GetLastSessionActivityUtc();
-                        if (lastSessionActivityUtc.HasValue && lastSessionActivityUtc.Value.Date != DateTime.UtcNow.Date)
-                        {
-                            try
-                            {
-                                val = sessionConfig.GetString("ResetOnEOD") == "Y" ? true : false;
-                            }
-                            catch (Exception err)
-                            {
-                            }
-                        }
-                        else if (!lastSessionActivityUtc.HasValue)
-                        {
-                            // Если файл еще не создан, оставляем прежнее поведение fallback.
-                            try
-                            {
-                                val = sessionConfig.GetString("ResetOnEOD") == "Y" ? true : false;
-                            }
-                            catch (Exception err)
-                            {
-                            }
-                        }
-                    }
+                    //if (val == false)
+                    //{
+                    //    DateTime? lastSessionActivityUtc = GetLastSessionActivityUtc();
+                    //    if (lastSessionActivityUtc.HasValue && lastSessionActivityUtc.Value.Date != DateTime.UtcNow.Date)
+                    //    {
+                    //        try
+                    //        {
+                    //            val = sessionConfig.GetString("ResetOnEOD") == "Y" ? true : false;
+                    //        }
+                    //        catch (Exception err)
+                    //        {
+                    //        }
+                    //    }
+                    //    else if (!lastSessionActivityUtc.HasValue)
+                    //    {
+                    //        // Если файл еще не создан, оставляем прежнее поведение fallback.
+                    //        try
+                    //        {
+                    //            val = sessionConfig.GetString("ResetOnEOD") == "Y" ? true : false;
+                    //        }
+                    //        catch (Exception err)
+                    //        {
+                    //        }
+                    //    }
+                    //}
                     message.SetField(new ResetSeqNumFlag(val));
                     // logon.Set(new ResetSeqNumFlag(true)); // Сбросить счётчик сообщений
 
@@ -2458,6 +2458,7 @@ GO
                                 var ord = new orders();
                                 ord.msgNum = long.Parse(m.Header.GetString(34));
                                 ord.fullMessage = m.ToJSON();
+                                ord.isReal = Program.ISREAL;
                                 ord.exchangeCode = Program.EXCH_CODE;
                                 if (m.IsSetField(1)) ord.acc = m.Account.Value;
                                 if (m.IsSetField(100)) ord.exDestination = m.GetField(new QuickFix.Fields.ExDestination()).Value;
@@ -4314,6 +4315,14 @@ GO
                         partyIdGroup.SetField(new PartyRole(int.Parse("1")));
                         req.AddGroup(partyIdGroup);
                     }
+                    else //добавил для всех 15.04.2026
+                    {
+                        partyIdGroup.SetField(new PartyID("387"));
+                        partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
+                        partyIdGroup.SetField(new PartyRole(int.Parse("1")));
+                        req.AddGroup(partyIdGroup);
+                    }
+
                     partyIdGroup.SetField(new PartyID(ord.SenderSubID));
                     partyIdGroup.SetField(new PartyIDSource(char.Parse(ord.PartyIDSource)));
                     partyIdGroup.SetField(new PartyRole(int.Parse(ord.PartyRole)));
