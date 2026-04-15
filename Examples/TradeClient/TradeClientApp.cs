@@ -1317,6 +1317,17 @@ GO
                 if (sessionConfig.Has("ResetSeqNumFlag"))
                 {
                     bool val = sessionConfig.GetString("ResetSeqNumFlag") == "Y" ? true : false;
+                    if(val == false && DateTime.Now.Date != DateTime.UtcNow.Date)
+                    {
+                        try 
+                        { 
+                            val = sessionConfig.GetString("ResetOnEOD") == "Y" ? true : false; 
+                        }
+                        catch(Exception err)
+                        {
+
+                        }
+                    }
                     message.SetField(new ResetSeqNumFlag(val));
                     // logon.Set(new ResetSeqNumFlag(true)); // Сбросить счётчик сообщений
 
