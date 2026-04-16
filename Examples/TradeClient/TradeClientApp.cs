@@ -4805,6 +4805,13 @@ GO
                             partyIdGroup.SetField(new PartyRole(int.Parse("1")));
                             ord1.AddGroup(partyIdGroup);
                         }
+                        else //add for all 15.04.2026
+                        {
+                            partyIdGroup.SetField(new PartyID("387"));
+                            partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
+                            partyIdGroup.SetField(new PartyRole(int.Parse("1")));
+                            ord1.AddGroup(partyIdGroup);
+                        }
                         partyIdGroup.SetField(new PartyID(r.Investor)); //r.SenderSubID 15.04.2026
                         partyIdGroup.SetField(new PartyIDSource(char.Parse(r.PartyIDSource)));
                         partyIdGroup.SetField(new PartyRole(int.Parse(r.PartyRole)));
