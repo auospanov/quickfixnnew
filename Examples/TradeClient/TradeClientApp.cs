@@ -4791,23 +4791,24 @@ GO
                         //второй элемент берем из таблицы                        
 
                         var partyIdGroup = new QuickFix.FIX50SP2.NewOrderSingle.NoPartyIDsGroup();
-                        if (r.Acc == "STDICLIENT")
+                        //if (r.Acc == "STDICLIENT")
+                        //{
+                        //    partyIdGroup.SetField(new PartyID("387"));
+                        //    partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
+                        //    partyIdGroup.SetField(new PartyRole(int.Parse("1")));
+                        //    ord1.AddGroup(partyIdGroup);
+                        //}
+                        //else if (r.Acc == "STDIOWN")
+                        //{
+                        //    partyIdGroup.SetField(new PartyID("387"));
+                        //    partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
+                        //    partyIdGroup.SetField(new PartyRole(int.Parse("1")));
+                        //    ord1.AddGroup(partyIdGroup);
+                        //}
+                        
+                        //add for all 15.04.2026
                         {
-                            partyIdGroup.SetField(new PartyID("387"));
-                            partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
-                            partyIdGroup.SetField(new PartyRole(int.Parse("1")));
-                            ord1.AddGroup(partyIdGroup);
-                        }
-                        else if (r.Acc == "STDIOWN")
-                        {
-                            partyIdGroup.SetField(new PartyID("387"));
-                            partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
-                            partyIdGroup.SetField(new PartyRole(int.Parse("1")));
-                            ord1.AddGroup(partyIdGroup);
-                        }
-                        else //add for all 15.04.2026
-                        {
-                            partyIdGroup.SetField(new PartyID("387"));
+                            partyIdGroup.SetField(new PartyID(r.SenderSubID)); //тут числовой код, присваиваемый брокеру
                             partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
                             partyIdGroup.SetField(new PartyRole(int.Parse("1")));
                             ord1.AddGroup(partyIdGroup);
