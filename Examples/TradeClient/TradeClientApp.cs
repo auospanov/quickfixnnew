@@ -944,7 +944,7 @@ GO
 
         public void OnLogon(SessionID sessionId)
         {
-            UpdateLastSessionActivityUtc();
+            //UpdateLastSessionActivityUtc();
             // Подписка на Reference Data (AIX): один запрос — полный snapshot всех инструментов (FIX RefData AIX v2.0)
             // Application Message Request (BW): RefApplID=R, ApplEndSeqNum=0. Подписка только 1 раз за сессию.
             if (Program.GetValueByKey(Program.cfg, "IsInstrRequest") == "1" && Program.EXCH_CODE == "AIX")
@@ -1041,7 +1041,7 @@ GO
         }
         public void OnLogout(SessionID sessionId)
         {
-            UpdateLastSessionActivityUtc();
+            //UpdateLastSessionActivityUtc();
             if (isDebug) Console.WriteLine("Logout - " + sessionId);
             try
             {
@@ -1058,7 +1058,6 @@ GO
 
         public void FromAdmin(Message message, SessionID sessionId)
         {
-            UpdateLastSessionActivityUtc();
             if (isDebug) Console.WriteLine("FromAdmin - " + message.ToString());
 
             if (message.Header.GetString(Tags.MsgType) == MsgType.LOGON)
@@ -1111,6 +1110,8 @@ GO
                     DailyLogger.Log($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(message));
                     recToLog($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(message));
                 }
+                UpdateLastSessionActivityUtc();
+
             }
             else if (message is QuickFix.FIXT11.Reject m)
             {
@@ -1357,7 +1358,7 @@ GO
         }
         public void ToAdmin(Message message, SessionID sessionId)
         {
-            UpdateLastSessionActivityUtc();
+            //UpdateLastSessionActivityUtc();
             if (message.Header.GetString(QuickFix.Fields.Tags.MsgType) == QuickFix.Fields.MsgType.LOGON)
             {
                 var sessionConfig = _settings.Get(sessionId);
@@ -1405,31 +1406,20 @@ GO
                 if (sessionConfig.Has("ResetSeqNumFlag"))
                 {
                     bool val = sessionConfig.GetString("ResetSeqNumFlag") == "Y" ? true : false;
-                    //if (val == false)
-                    //{
-                    //    DateTime? lastSessionActivityUtc = GetLastSessionActivityUtc();
-                    //    if (lastSessionActivityUtc.HasValue && lastSessionActivityUtc.Value.Date != DateTime.UtcNow.Date)
-                    //    {
-                    //        try
-                    //        {
-                    //            val = sessionConfig.GetString("ResetOnEOD") == "Y" ? true : false;
-                    //        }
-                    //        catch (Exception err)
-                    //        {
-                    //        }
-                    //    }
-                    //    else if (!lastSessionActivityUtc.HasValue)
-                    //    {
-                    //        // Если файл еще не создан, оставляем прежнее поведение fallback.
-                    //        try
-                    //        {
-                    //            val = sessionConfig.GetString("ResetOnEOD") == "Y" ? true : false;
-                    //        }
-                    //        catch (Exception err)
-                    //        {
-                    //        }
-                    //    }
-                    //}
+                    if (val == false)
+                    {
+                        DateTime? lastSessionActivityUtc = GetLastSessionActivityUtc();
+                        if (!lastSessionActivityUtc.HasValue || lastSessionActivityUtc.Value.Date != DateTime.UtcNow.Date)
+                        {
+                            try
+                            {
+                                val = sessionConfig.GetString("ResetOnEOD") == "Y" ? true : false;
+                            }
+                            catch (Exception err)
+                            {
+                            }
+                        }
+                    }
                     message.SetField(new ResetSeqNumFlag(val));
                     // logon.Set(new ResetSeqNumFlag(true)); // Сбросить счётчик сообщений
 
@@ -1445,12 +1435,13 @@ GO
         }
         public void FromApp(Message message, SessionID sessionId)
         {
-            UpdateLastSessionActivityUtc();
             if (isDebug) Console.WriteLine("IN:  " + message.ConstructString());
             try
             {
                 Crack(message, sessionId);
                 Console.WriteLine($"[FromApp] {message}");
+                UpdateLastSessionActivityUtc();
+
             }
             catch (QuickFIXException ex)
             {
