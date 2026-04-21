@@ -1199,7 +1199,7 @@ GO
             else if (message is QuickFix.FIX44.Logon logon)
             {
                 //если сегодня меняется пароль
-                if (Program.isChangePassword)
+                if (Program.isChangePassword && DateTime.UtcNow.Hour < 17)
                 {
                     string rz58 = string.Empty;
                     try { rz58 = logon.GetString(1409); }
