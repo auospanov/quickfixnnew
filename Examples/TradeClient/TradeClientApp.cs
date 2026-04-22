@@ -1115,7 +1115,7 @@ GO
             }
             else if (message is QuickFix.FIXT11.Reject m)
             {
-                if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+                //if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
                 {
                     if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                     try
@@ -1156,7 +1156,7 @@ GO
             }
             else if (message is QuickFix.FIX44.Reject rj)
             {
-                if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+                //if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
                 {
                     if (isDebug) Console.WriteLine("Received Reject");
                     try
@@ -2473,6 +2473,7 @@ GO
                                 if (m.IsSetField(58)) ord.comments = m.Text.Value;
                                 if (m.IsSetField(378)) ord.execRestatementReason = m.GetInt(378);
                                 if (m.IsSetField(880)) ord.TrdMatchID = m.TrdMatchID.Value;
+                                if (m.IsSetField(56)) ord.sessionId = m.GetString(56); // добавили для получения sessionId из заголовка TargetCompId
 
                                 if (m.IsSetField(QuickFix.Fields.Tags.TransactTime))
                                 {
@@ -2743,7 +2744,7 @@ GO
 
         public void OnMessage(QuickFix.FIX44.Reject m, SessionID s)
         {
-            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            //if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("FIX44.Reject");
                 try
@@ -2777,7 +2778,7 @@ GO
         public void OnMessage(QuickFix.FIX44.BusinessMessageReject m, SessionID s)
         {
 
-            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            //if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
@@ -2813,7 +2814,7 @@ GO
         }
         public void OnMessage(QuickFix.FIX50SP2.BusinessMessageReject m, SessionID s)
         {            
-            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            //if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
@@ -2886,7 +2887,7 @@ GO
         }
         public void OnMessage(QuickFix.FIX50SP1.BusinessMessageReject m, SessionID s)
         {
-            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            //if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
@@ -2925,7 +2926,7 @@ GO
         }
         public void OnMessage(QuickFix.FIX50SP2.OrderCancelReject m, SessionID s)
         {
-            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            //if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
 
@@ -2969,7 +2970,7 @@ GO
         }
         public void OnMessage(QuickFix.FIX50SP1.OrderCancelReject m, SessionID s)
         {
-            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            //if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received BusinessMessageReject");
                 try
@@ -3876,7 +3877,7 @@ GO
 
         public void OnMessage(QuickFix.FIX44.OrderCancelReject m, SessionID s)
         {
-            if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+            //if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
             {
                 if (isDebug) Console.WriteLine("Received OrderCancelReject");
                 try
@@ -4293,29 +4294,34 @@ GO
                     req.Side = side;
                     req.Account = new Account(ord.Acc);
                     var partyIdGroup = new QuickFix.FIX50SP2.NewOrderSingle.NoPartyIDsGroup();
-                    if (ord.Acc == "STDICLIENT")
+                    
+                    //if (ord.Acc == "STDICLIENT")
+                    //{
+                    //    partyIdGroup.SetField(new PartyID("387"));
+                    //    partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
+                    //    partyIdGroup.SetField(new PartyRole(int.Parse("1")));
+                    //    req.AddGroup(partyIdGroup);
+                    //}
+                    //else if (ord.Acc == "STDIOWN")
+                    //{
+                    //    partyIdGroup.SetField(new PartyID("387"));
+                    //    partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
+                    //    partyIdGroup.SetField(new PartyRole(int.Parse("1")));
+                    //    req.AddGroup(partyIdGroup);
+                    //}
+                    //partyIdGroup.SetField(new PartyID(ord.SenderSubID));
+                    //partyIdGroup.SetField(new PartyIDSource(char.Parse(ord.PartyIDSource)));
+                    //partyIdGroup.SetField(new PartyRole(int.Parse(ord.PartyRole)));
+                    //req.AddGroup(partyIdGroup);
+                    
+                    //add for all 15.04.2026
                     {
-                        partyIdGroup.SetField(new PartyID("387"));
+                        partyIdGroup.SetField(new PartyID(ord.SenderSubID)); //тут числовой код, присваиваемый брокеру
                         partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
                         partyIdGroup.SetField(new PartyRole(int.Parse("1")));
                         req.AddGroup(partyIdGroup);
                     }
-                    else if (ord.Acc == "STDIOWN")
-                    {
-                        partyIdGroup.SetField(new PartyID("387"));
-                        partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
-                        partyIdGroup.SetField(new PartyRole(int.Parse("1")));
-                        req.AddGroup(partyIdGroup);
-                    }
-                    else //добавил для всех 15.04.2026
-                    {
-                        partyIdGroup.SetField(new PartyID("387"));
-                        partyIdGroup.SetField(new PartyIDSource(char.Parse("D")));
-                        partyIdGroup.SetField(new PartyRole(int.Parse("1")));
-                        req.AddGroup(partyIdGroup);
-                    }
-
-                    partyIdGroup.SetField(new PartyID(ord.SenderSubID));
+                    partyIdGroup.SetField(new PartyID(ord.Investor)); //r.SenderSubID 15.04.2026
                     partyIdGroup.SetField(new PartyIDSource(char.Parse(ord.PartyIDSource)));
                     partyIdGroup.SetField(new PartyRole(int.Parse(ord.PartyRole)));
                     req.AddGroup(partyIdGroup);
