@@ -2252,8 +2252,10 @@ GO
                                 catch (Exception err) { }
                                 if (m.IsSetField(236)) order.yield = m.GetDecimal(236);
                                 if (m.IsSetField(40)) order.type = GetOrdTypeName(m.GetChar(40));
-                                if (m.IsSetField(880)) order.TrdMatchID = m.GetString(880);
-
+                                if(Program.BROKER.Equals("KASE_SPOT", StringComparison.OrdinalIgnoreCase))
+                                    if (m.IsSetField(527)) order.TrdMatchID = m.GetString(527);
+                                else
+                                    if (m.IsSetField(880)) order.TrdMatchID = m.GetString(880);
                                 try
                                 {
                                     string raw = m.ToString().Replace('\u0001', ' ');
