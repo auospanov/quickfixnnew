@@ -3307,6 +3307,7 @@ GO
                     return;
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                 {
+                    
                     var instr = new instruments();
                     instr.isReal = 1;
                     instr.exchangeCode = Program.EXCH_CODE;
@@ -3363,6 +3364,15 @@ GO
                     if(sd.IsSetField(159))
                     {
                         instr.accrued_interest = sd.GetDecimal(159);
+                    }
+                    else
+                    {
+                        string secType = sd.SecurityType.Value;
+
+                        if (secType.ToUpper().Contains("BOND"))
+                        {
+                            instr.accrued_interest = 0m; // или другое значение по умолчанию для облигаций
+                        }
                     }
                     
                     //if (sd.IsSetField(Tags.MaturityDate)) instr.maturityDate = DateTime.Parse(sd.MaturityDate.Value);
