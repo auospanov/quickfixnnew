@@ -3367,12 +3367,22 @@ GO
                     }
                     else
                     {
-                        string secType = sd.SecurityType.Value;
-
-                        if (secType.ToUpper().Contains("BOND"))
+                        string secType = sd.IsSetSecurityType() ? sd.SecurityType.Value : null;
+                        if(secType == "5")
                         {
-                            instr.accrued_interest = 0m; // или другое значение по умолчанию для облигаций
+                            instr.accrued_interest = 0m; // по умолчанию для облигаций
                         }
+
+                        if (sd.IsSetCFICode())
+                        {
+                            string cfiCode = sd.CFICode.Value;
+                            // Пример: если CFI код начинается с "DB", это может быть облигация
+                            if (cfiCode.StartsWith("DB"))
+                            {
+                                instr.accrued_interest = 0m; // или другое значение по умолчанию для облигаций
+                            }
+                        }
+                        
                     }
                     
                     //if (sd.IsSetField(Tags.MaturityDate)) instr.maturityDate = DateTime.Parse(sd.MaturityDate.Value);
