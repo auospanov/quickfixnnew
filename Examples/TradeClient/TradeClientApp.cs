@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
 using Oracle.ManagedDataAccess.Client;
@@ -18,6 +18,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Runtime;
 using System.Security.Cryptography;
 using System.Text;
@@ -491,21 +492,240 @@ GO
         {
             try { HbGetOrdersForSend(); } catch (Exception ex) { if (isDebug) Console.WriteLine($"[GetOrdersForSendTimerTick] {ex.Message}"); }
         }
+
+        private static bool IsCfgFlagEnabled(string key, bool defaultValue = false)
+        {
+            string raw = Program.GetValueByKey(Program.cfg, key);
+            if (string.IsNullOrWhiteSpace(raw))
+                return defaultValue;
+            return raw.Equals("Y", StringComparison.OrdinalIgnoreCase)
+                || raw.Equals("1", StringComparison.OrdinalIgnoreCase)
+                || raw.Equals("true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static List<string> GetSignalREndpointsFromCfg()
+        {
+            string configured = Program.GetValueByKey(Program.cfg, "SignalREndpoints") ?? "";
+            return configured
+                .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => !string.IsNullOrEmpty(s))
+                .ToList();
+        }
+
+        private static string FormatQuotePriceStr(decimal? value)
+        {
+            if (!value.HasValue || value.Value == 0)
+                return "";
+            return value.Value.ToString("# ##0.######", CultureInfo.InvariantCulture).Replace('.', ',');
+        }
+
+        private sealed class SignalRQuoteUpdateDto
+        {
+            public string IdObject { get; set; } = "";
+            public string MessageText { get; set; } = "";
+        }
+
+        /// <summary>Формирование MessageText для SignalR (принцип MulticastChat / INSTRS).</summary>
+        private static List<SignalRQuoteUpdateDto> BuildQuoteSignalRUpdates(quotesSimple q)
+        {
+            var messages = new List<SignalRQuoteUpdateDto>();
+            if (q == null || string.IsNullOrWhiteSpace(q.ticker))
+                return messages;
+
+            string sourceName = Program.EXCH_CODE ?? Program.ADAPTER ?? "FIX";
+            string ticker = q.ticker;
+            string tickerVisible = q.ticker;
+            string shortName = q.ticker;
+            string idObject = "0";
+            var instr = instrs.FirstOrDefault(i =>
+                string.Equals(i.symbol, ticker, StringComparison.OrdinalIgnoreCase));
+            if (instr != null && !string.IsNullOrWhiteSpace(instr.codeMubasher))
+                idObject = instr.codeMubasher;
+
+            if (q.bid.HasValue || q.ask.HasValue)
+            {
+                string bid = (q.bid ?? 0).ToString(CultureInfo.InvariantCulture);
+                string ask = (q.ask ?? 0).ToString(CultureInfo.InvariantCulture);
+                string bidStr = FormatQuotePriceStr(q.bid);
+                string askStr = FormatQuotePriceStr(q.ask);
+                const string bidAskTemplate =
+                    "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"bid\\\":{bid},\\\"bidStr\\\":\\\"{bidStr}\\\",\\\"ask\\\":{ask},\\\"askStr\\\":\\\"{askStr}\\\"}]\\\"\"}";
+                messages.Add(new SignalRQuoteUpdateDto
+                {
+                    IdObject = idObject,
+                    MessageText = bidAskTemplate
+                        .Replace("{sourceName}", sourceName)
+                        .Replace("{ticker}", tickerVisible)
+                        .Replace("{shortName}", shortName)
+                        .Replace("{tickerVisible}", tickerVisible)
+                        .Replace("{IdObject}", idObject)
+                        .Replace("{bid}", bid)
+                        .Replace("{bidStr}", bidStr)
+                        .Replace("{ask}", ask)
+                        .Replace("{askStr}", askStr)
+                });
+            }
+
+            if (q.lastTrade.HasValue && q.lastTrade.Value != 0)
+            {
+                string last1 = q.lastTrade.Value.ToString(CultureInfo.InvariantCulture);
+                string last1Str = FormatQuotePriceStr(q.lastTrade);
+                const string lastTemplate =
+                    "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"last1\\\":{last1},\\\"last1Str\\\":\\\"{last1Str}\\\",\\\"pctChg1D\\\":{pctChg1D},\\\"pctChg1DStr\\\":\\\"{pctChg1DStr}\\\",\\\"pctChg1DColor\\\":\\\"{pctChg1DColor}\\\"}]\\\"\"}";
+                messages.Add(new SignalRQuoteUpdateDto
+                {
+                    IdObject = idObject,
+                    MessageText = lastTemplate
+                        .Replace("{sourceName}", sourceName)
+                        .Replace("{ticker}", tickerVisible)
+                        .Replace("{shortName}", shortName)
+                        .Replace("{tickerVisible}", tickerVisible)
+                        .Replace("{IdObject}", idObject)
+                        .Replace("{last1}", last1)
+                        .Replace("{last1Str}", last1Str)
+                        .Replace("{pctChg1D}", "0")
+                        .Replace("{pctChg1DStr}", "0%")
+                        .Replace("{pctChg1DColor}", "#808080")
+                });
+            }
+
+            return messages;
+        }
+
+        /// <summary>Bulk insert в dbo.signalRMessages (как MulticastChat BulkInsertSignalRMessagesInstrs).</summary>
+        private static void BulkInsertSignalRMessagesInstrs(IReadOnlyList<SignalRQuoteUpdateDto> updates, string objectType = "INSTRS")
+        {
+            if (updates == null || updates.Count == 0)
+                return;
+
+            var table = new DataTable();
+            table.Columns.Add("idObject", typeof(string));
+            table.Columns.Add("objectType", typeof(string));
+            table.Columns.Add("messageText", typeof(string));
+
+            foreach (var update in updates)
+            {
+                if (string.IsNullOrWhiteSpace(update.MessageText))
+                    continue;
+                table.Rows.Add(update.IdObject ?? "", objectType, update.MessageText);
+            }
+            if (table.Rows.Count == 0)
+                return;
+
+            var sharedConn = DbContextFactory.GetSharedConnection();
+            if (sharedConn == null || sharedConn.State != ConnectionState.Open)
+                return;
+
+            lock (sharedConn)
+            {
+                using (var bulk = new SqlBulkCopy(sharedConn))
+                {
+                    bulk.DestinationTableName = "dbo.signalRMessages";
+                    bulk.ColumnMappings.Add("idObject", "idObject");
+                    bulk.ColumnMappings.Add("objectType", "objectType");
+                    bulk.ColumnMappings.Add("messageText", "messageText");
+                    bulk.WriteToServer(table);
+                }
+            }
+        }
+
+        /// <summary>Вызов dbo.fixDataUpdateNew для каждого сообщения котировки.</summary>
+        private static void FixDataUpdateQuoteMessages(IEnumerable<SignalRQuoteUpdateDto> updates)
+        {
+            foreach (var update in updates)
+            {
+                if (string.IsNullOrWhiteSpace(update.MessageText))
+                    continue;
+                FixGetUpdateDataNew(update.MessageText);
+            }
+        }
+
+        private static string BuildSignalRMarketDataPayload(IEnumerable<string> messageJsonParts)
+        {
+            var parts = messageJsonParts.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+            string jsonArray = "[" + string.Join(",", parts) + "]";
+            string encodedString = Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonArray));
+            return JsonConvert.SerializeObject(new { Type = "sendMarketDataITS", Payload = encodedString });
+        }
+
+        private async Task ProcessQuotesSignalRBranchAsync(List<quotesSimple> tempList)
+        {
+            var updates = new List<SignalRQuoteUpdateDto>();
+            foreach (var quote in tempList)
+                updates.AddRange(BuildQuoteSignalRUpdates(quote));
+            if (updates.Count == 0)
+                return;
+
+            var endpoints = GetSignalREndpointsFromCfg();
+            if (endpoints.Count > 0)
+            {
+                var messageTexts = updates.Select(u => u.MessageText).ToList();
+                string jsonPayload = BuildSignalRMarketDataPayload(messageTexts);
+                await PostSignalRPayloadAsync(jsonPayload, endpoints).ConfigureAwait(false);
+            }
+
+            try
+            {
+                BulkInsertSignalRMessagesInstrs(updates);
+                FixDataUpdateQuoteMessages(updates);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TimerTick] quotes DB update error: {ex.Message}");
+                recToLog($"quotes DB update error: {ex.Message}");
+            }
+        }
+
+        private async Task PostSignalRPayloadAsync(string jsonPayload, IEnumerable<string> endpoints)
+        {
+            using (var client = new HttpClient())
+            {
+                foreach (string url in endpoints)
+                {
+                    try
+                    {
+                        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                        await client.PostAsync(url, content).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[TimerTick] SignalR POST error ({url}): {ex.Message}");
+                        recToLog($"SignalR POST error ({url}): {ex.Message}");
+                    }
+                }
+            }
+        }
+
         private void TimerTick(object state)
         {
             if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1")
             {
-                using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                List<quotesSimple> tempList = new List<quotesSimple>();
+                lock (quotesSimples)
                 {
-                    List<quotesSimple> tempList = new List<quotesSimple>();
-                    lock (quotesSimples)
+                    tempList = quotesSimples.ToList();
+                    quotesSimples = new ConcurrentBag<quotesSimple>();
+                }
+                tempList = tempList
+                    .Where(s => !string.IsNullOrEmpty(s.msgNum))
+                    .OrderBy(s => int.Parse(s.msgNum))
+                    .ToList();
+
+                if (IsCfgFlagEnabled("SendQuotesToSignalR"))
+                {
+                    // ветка 2: пачка → SignalR + dbo.signalRMessages + fixDataUpdateNew
+                    if (tempList.Count > 0)
+                        _ = Task.Run(() => ProcessQuotesSignalRBranchAsync(tempList));
+                }
+                else
+                {
+                    // ветка 1: запись в БД (как было)
+                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                     {
-                        tempList = quotesSimples.ToList();
-                        quotesSimples = new ConcurrentBag<quotesSimple>();
+                        wrapper.Context.quotesSimple.AddRange(tempList);
+                        wrapper.Context.SaveChanges();
                     }
-                    tempList = tempList.OrderBy(s => int.Parse(s.msgNum)).ToList();
-                    wrapper.Context.quotesSimple.AddRange(tempList);
-                    wrapper.Context.SaveChanges();
                 }
             }
 
