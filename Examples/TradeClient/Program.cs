@@ -149,6 +149,13 @@ namespace TradeClient
                 
                 DbContextFactory.Initialize(connectionString);
                 Console.WriteLine("DbContextFactory инициализирована с пулом подключений");
+
+                string marketDataConnectionString = GetValueByKey(cfg, "ConnectionStringMarketData");
+                if (!string.IsNullOrWhiteSpace(marketDataConnectionString))
+                {
+                    MarketDataDbContextFactory.Initialize(marketDataConnectionString);
+                    Console.WriteLine("MarketDataDbContextFactory инициализирована");
+                }
                 
                 if (TradeClientApp.isStop(connectionString))
                 {
@@ -250,6 +257,7 @@ namespace TradeClient
             finally
             {
                 OracleAisConnectionFactory.DisposeStatic();
+                MarketDataDbContextFactory.DisposeStatic();
                 // Освобождаем ресурсы фабрики при завершении приложения
                 DbContextFactory.DisposeStatic();
             }

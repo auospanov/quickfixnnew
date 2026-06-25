@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Data.SqlClient;
-using System.Text.RegularExpressions;
 
 namespace TradeClient
 {
@@ -28,8 +27,7 @@ namespace TradeClient
                 {
                     if (_sharedContext == null)
                     {
-                        // Очищаем строку подключения от неподдерживаемых параметров
-                        var cleanedConnectionString = CleanConnectionString(connectionString);
+                        var cleanedConnectionString = SqlConnectionStringHelper.Clean(connectionString);
 
                         // Создаем одно физическое подключение, которое будет переиспользоваться
                         // Это критически важно для предотвращения множественных login/logout событий
@@ -53,59 +51,6 @@ namespace TradeClient
                     }
                 }
             }
-        }
-
-        /// <summary>
-        /// Очищает строку подключения от параметров, не поддерживаемых System.Data.SqlClient
-        /// И отключает пул подключений для использования строго одного подключения
-        /// </summary>
-        private static string CleanConnectionString(string connectionString)
-        {
-            // System.Data.SqlClient не поддерживает "Trust Server Certificate" (с пробелами)
-            // Заменяем на "TrustServerCertificate" (без пробелов)
-            var cleaned = connectionString;
-            
-            // Заменяем "Trust Server Certificate" на "TrustServerCertificate"
-            if (cleaned.Contains("Trust Server Certificate", StringComparison.OrdinalIgnoreCase))
-            {
-                cleaned = Regex.Replace(
-                    cleaned, 
-                    @"Trust\s+Server\s+Certificate\s*=\s*([^;]+)", 
-                    "TrustServerCertificate=$1", 
-                    RegexOptions.IgnoreCase);
-            }
-            
-            // КРИТИЧЕСКИ ВАЖНО: Отключаем пул подключений ADO.NET
-            // Это гарантирует использование строго одного подключения
-            if (cleaned.Contains("Pooling", StringComparison.OrdinalIgnoreCase))
-            {
-                cleaned = Regex.Replace(
-                    cleaned,
-                    @"Pooling\s*=\s*[^;]+",
-                    "Pooling=false",
-                    RegexOptions.IgnoreCase);
-            }
-            else
-            {
-                cleaned = cleaned.TrimEnd(';', ' ') + ";Pooling=false";
-            }
-            
-            // ВАЖНО: Включаем MARS (Multiple Active Result Sets) для поддержки нескольких активных запросов
-            // Это необходимо, так как одно подключение используется и для EF Core, и для прямых ADO.NET запросов
-            if (!cleaned.Contains("MultipleActiveResultSets", StringComparison.OrdinalIgnoreCase))
-            {
-                cleaned = cleaned.TrimEnd(';', ' ') + ";MultipleActiveResultSets=True";
-            }
-            
-            // Удаляем параметры пула, которые могут создавать дополнительные подключения
-            cleaned = Regex.Replace(cleaned, @"Max\s+Pool\s+Size\s*=\s*[^;]+;?", "", RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"Min\s+Pool\s+Size\s*=\s*[^;]+;?", "", RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"Connection\s+Lifetime\s*=\s*[^;]+;?", "", RegexOptions.IgnoreCase);
-            
-            // Убираем двойные точки с запятой и лишние пробелы
-            cleaned = cleaned.Replace(";;", ";").TrimEnd(';', ' ');
-            
-            return cleaned;
         }
 
         /// <summary>

@@ -411,6 +411,42 @@ GO
         }
 
         /// <summary>
+        /// Вызов dbo.fixDataUpdateNew на БД маркет-данных (ConnectionStringMarketData).
+        /// </summary>
+        public static (string resCode, string resultString) FixGetUpdateDataNewMarketData(string data)
+        {
+            if (string.IsNullOrEmpty(data))
+                return ("-1", "");
+            try
+            {
+                var sharedConn = MarketDataDbContextFactory.GetSharedConnection();
+                if (sharedConn != null && sharedConn.State == ConnectionState.Open)
+                {
+                    lock (sharedConn)
+                    {
+                        using (var cmd = new SqlCommand("dbo.fixDataUpdateNew", sharedConn))
+                        {
+                            cmd.CommandType = CommandType.StoredProcedure;
+                            cmd.Parameters.Add(new SqlParameter("@messageText", SqlDbType.NVarChar, -1) { Value = data, Direction = ParameterDirection.Input });
+                            var pResCode = new SqlParameter("@resCode", SqlDbType.VarChar, 10) { Direction = ParameterDirection.InputOutput, Value = "-1" };
+                            var pResult = new SqlParameter("@resultString", SqlDbType.NVarChar, -1) { Direction = ParameterDirection.Output };
+                            cmd.Parameters.Add(pResCode);
+                            cmd.Parameters.Add(pResult);
+                            cmd.ExecuteNonQuery();
+                            return (pResCode.Value?.ToString() ?? "-1", pResult.Value?.ToString() ?? "");
+                        }
+                    }
+                }
+                return ("-1", "");
+            }
+            catch (Exception ex)
+            {
+                DailyLogger.Log($"[FixGetUpdateDataNewMarketData] {ex.Message}");
+                return ("-1", "");
+            }
+        }
+
+        /// <summary>
         /// Запрос в АИС (Oracle) списка заявок, готовых для отправки на FIX; для каждой вызывается FixGetUpdateDataNew.
         /// </summary>
         private void HbGetOrdersForSend()
@@ -613,9 +649,9 @@ GO
             if (table.Rows.Count == 0)
                 return;
 
-            var sharedConn = DbContextFactory.GetSharedConnection();
+            var sharedConn = MarketDataDbContextFactory.GetSharedConnection();
             if (sharedConn == null || sharedConn.State != ConnectionState.Open)
-                return;
+                throw new InvalidOperationException("MarketDataDbContextFactory не инициализирована (ConnectionStringMarketData).");
 
             lock (sharedConn)
             {
@@ -637,7 +673,7 @@ GO
             {
                 if (string.IsNullOrWhiteSpace(update.MessageText))
                     continue;
-                FixGetUpdateDataNew(update.MessageText);
+                FixGetUpdateDataNewMarketData(update.MessageText);
             }
         }
 
@@ -663,6 +699,12 @@ GO
                 var messageTexts = updates.Select(u => u.MessageText).ToList();
                 string jsonPayload = BuildSignalRMarketDataPayload(messageTexts);
                 await PostSignalRPayloadAsync(jsonPayload, endpoints).ConfigureAwait(false);
+            }
+
+            if (!MarketDataDbContextFactory.IsInitialized)
+            {
+                recToLog("quotes DB update skipped: ConnectionStringMarketData не задан");
+                return;
             }
 
             try
