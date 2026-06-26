@@ -27,49 +27,46 @@ namespace TradeClient
 
     public sealed class GlassContainerDto
     {
-        [JsonProperty("objectType")]
-        public string ObjectType { get; set; } = "GLASS";
-
-        [JsonProperty("sourceName")]
-        public string SourceName { get; set; } = "";
-
-        [JsonProperty("ticker")]
+        [JsonProperty("ticker", Order = 1)]
         public string Ticker { get; set; } = "";
 
-        [JsonProperty("shortName")]
+        [JsonProperty("data", Order = 2)]
+        public List<GlassEntryDto> Data { get; set; } = new();
+
+        [JsonProperty("sourceName", Order = 3)]
+        public string SourceName { get; set; } = "";
+
+        [JsonProperty("shortName", Order = 4)]
         public string ShortName { get; set; } = "";
 
-        [JsonProperty("board")]
-        public string Board { get; set; } = "";
-
-        [JsonProperty("data")]
-        public string Data { get; set; } = "";
+        [JsonProperty("objectType", Order = 5)]
+        public string ObjectType { get; set; } = "GLASS";
     }
 
     public sealed class GlassEntryDto
     {
-        [JsonProperty("askQuantity")]
-        public string AskQuantity { get; set; } = "-";
-
-        [JsonProperty("priceStr")]
+        [JsonProperty("priceStr", Order = 1)]
         public string PriceStr { get; set; } = "";
 
-        [JsonProperty("bidQuantity")]
-        public string BidQuantity { get; set; } = "-";
+        [JsonProperty("bidQuantity", Order = 2)]
+        public object BidQuantity { get; set; } = "";
 
-        [JsonProperty("best")]
-        public string Best { get; set; } = "";
-
-        [JsonProperty("fontColor")]
-        public string FontColor { get; set; } = "#000000";
-
-        [JsonProperty("colorBuy")]
-        public string ColorBuy { get; set; } = "#E8F5E9";
-
-        [JsonProperty("colorSell")]
-        public string ColorSell { get; set; } = "#FFEBEE";
-
-        [JsonProperty("price")]
+        [JsonProperty("price", Order = 3)]
         public decimal Price { get; set; }
+
+        [JsonProperty("askQuantity", Order = 4)]
+        public object AskQuantity { get; set; } = "";
+
+        [JsonProperty("colorBuy", Order = 5)]
+        public string ColorBuy { get; set; } = "";
+
+        [JsonProperty("colorSell", Order = 6)]
+        public string ColorSell { get; set; } = "";
+
+        [JsonProperty("best", Order = 7)]
+        public int Best { get; set; }
+
+        [JsonProperty("fontColor", Order = 8)]
+        public string FontColor { get; set; } = "#000000";
     }
 }

@@ -701,10 +701,14 @@ GO
             return quote;
         }
 
-        private static string FormatGlassQty(decimal qty)
+        private static object FormatGlassQtyValue(decimal qty)
         {
-            string formatted = qty.ToString("# ##0.######", CultureInfo.InvariantCulture).Trim();
-            return formatted == "0" ? "-" : formatted;
+            return qty <= 0 ? "" : (object)qty;
+        }
+
+        private static string FormatGlassPriceStr(decimal price)
+        {
+            return price.ToString("# ##0.######", CultureInfo.InvariantCulture).Trim();
         }
 
         private static void TryEnqueueGlassFromMdEntries(string symbol, List<MdEntryLevel> bidLevels, List<MdEntryLevel> askLevels)
@@ -748,13 +752,22 @@ GO
 
             var glassEntries = selected
                 .Take(20)
-                .Select(p => new GlassEntryDto
+                .Select(p =>
                 {
-                    Price = p.Key,
-                    PriceStr = p.Key.ToString("# ##0.######", CultureInfo.InvariantCulture),
-                    BidQuantity = FormatGlassQty(p.Value.bidQty),
-                    AskQuantity = FormatGlassQty(p.Value.askQty),
-                    Best = (maxBid.HasValue && p.Key == maxBid.Value) || (minAsk.HasValue && p.Key == minAsk.Value) ? "1" : ""
+                    bool isBestBid = maxBid.HasValue && p.Key == maxBid.Value && p.Value.bidQty > 0;
+                    bool isBestAsk = minAsk.HasValue && p.Key == minAsk.Value && p.Value.askQty > 0;
+                    bool isBest = isBestBid || isBestAsk;
+                    return new GlassEntryDto
+                    {
+                        Price = p.Key,
+                        PriceStr = FormatGlassPriceStr(p.Key),
+                        BidQuantity = FormatGlassQtyValue(p.Value.bidQty),
+                        AskQuantity = FormatGlassQtyValue(p.Value.askQty),
+                        Best = isBest ? 1 : 0,
+                        FontColor = isBest ? "#FF0000" : "#000000",
+                        ColorBuy = "",
+                        ColorSell = ""
+                    };
                 })
                 .ToList();
 
@@ -762,15 +775,14 @@ GO
                 return;
 
             string sourceName = GetMarketSourceName();
-            string serializedGlass = JsonConvert.SerializeObject(glassEntries);
+            string ticker = instr.tickerVisible ?? symbol;
             var container = new GlassContainerDto
             {
-                ObjectType = "GLASS",
-                SourceName = sourceName,
-                Ticker = instr.tickerVisible ?? symbol,
+                Ticker = ticker,
                 ShortName = instr.shortName ?? symbol,
-                Board = "",
-                Data = "\"" + serializedGlass + "\""
+                SourceName = sourceName,
+                ObjectType = "GLASS",
+                Data = glassEntries
             };
 
             lock (_glassContainerLock)
