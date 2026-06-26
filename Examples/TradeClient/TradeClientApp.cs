@@ -703,7 +703,16 @@ GO
 
         private static object FormatGlassQtyValue(decimal qty)
         {
-            return qty <= 0 ? "" : (object)qty;
+            if (qty <= 0)
+                return "";
+            if (qty == decimal.Truncate(qty))
+                return (long)qty;
+            return qty;
+        }
+
+        private static string SerializeGlassContainerMessage(GlassContainerDto container)
+        {
+            return JsonConvert.SerializeObject(new List<GlassContainerDto> { container });
         }
 
         private static string FormatGlassPriceStr(decimal price)
@@ -938,7 +947,7 @@ GO
             {
                 if (group.glassContainers == null || group.glassContainers.Count == 0)
                     continue;
-                string messageText = JsonConvert.SerializeObject(group.glassContainers[0]);
+                string messageText = SerializeGlassContainerMessage(group.glassContainers[0]);
                 table.Rows.Add(group.ObjectId ?? "", "GLASS", messageText, 1, DateTime.Now);
             }
             if (table.Rows.Count == 0)
