@@ -613,8 +613,9 @@ GO
 
         private static decimal CalcPctChg1D(decimal? lastTrade, instrsView? instr)
         {
-            // lastPrevDay в FIX-ветке пока не загружается — оставляем 0, как fallback в MulticastChat
-            return 0;
+            if (!lastTrade.HasValue || lastTrade.Value == 0 || instr == null || instr.lastPrevDay == 0)
+                return 0;
+            return lastTrade.Value * 100m / instr.lastPrevDay - 100m;
         }
 
         private static void FixDataUpdateSnapshot(string json)
@@ -1269,7 +1270,8 @@ GO
                                         requestId = requestId,
                                         idObject = instrView.idObject,
                                         tickerVisible = instrView.tickerVisible,
-                                        shortName = instrView.shortName
+                                        shortName = instrView.shortName,
+                                        lastPrevDay = instrView.lastPrevDay
                                     });
                                 }
                                 catch (Exception ex)
@@ -1280,6 +1282,10 @@ GO
                             else
                             {
                                 var existingInstr = instrs.First(i => i.symbol == instrView.symbol);
+                                existingInstr.lastPrevDay = instrView.lastPrevDay;
+                                existingInstr.tickerVisible = instrView.tickerVisible;
+                                existingInstr.shortName = instrView.shortName;
+                                existingInstr.codeMubasher = instrView.codeMubasher;
                                 updatedInstrs.Add(existingInstr);
                             }
                         }
