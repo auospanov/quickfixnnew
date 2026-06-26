@@ -832,7 +832,7 @@ GO
 
         private static SignalRQuoteUpdateDto? BuildQuoteBidAskSignalRUpdate(quotesSimple q)
         {
-            if (q == null || string.IsNullOrWhiteSpace(q.ticker))
+            if (q == null || string.IsNullOrWhiteSpace(q.ticker) || HasLastTrade(q))
                 return null;
             if (!q.bid.HasValue && !q.ask.HasValue)
                 return null;
@@ -985,6 +985,9 @@ GO
                 await PostSignalRPayloadAsync(jsonPayload, endpoints).ConfigureAwait(false);
             }
 
+            if (!MarketDataDbContextFactory.IsInitialized)
+                return;
+
             BulkInsertSignalRMessagesGlass(glassBatch);
         }
 
@@ -999,11 +1002,9 @@ GO
 
         private async Task ProcessQuotesSignalRBranchAsync(List<quotesSimple> tempList)
         {
-            if (!MarketDataDbContextFactory.IsInitialized)
-            {
+            bool marketDbReady = MarketDataDbContextFactory.IsInitialized;
+            if (!marketDbReady)
                 recToLog("quotes DB update skipped: ConnectionStringMarketData не задан");
-                return;
-            }
 
             var lastByInstrument = new Dictionary<string, SignalRQuoteUpdateDto>(StringComparer.OrdinalIgnoreCase);
             var bidAskByInstrument = new Dictionary<string, SignalRQuoteUpdateDto>(StringComparer.OrdinalIgnoreCase);
@@ -1023,17 +1024,22 @@ GO
 
                 if (HasLastTrade(quote))
                 {
-                    lastSnapshotByInstrument[key] = BuildFixUpdateLastSnapshotItem(
-                        quote, instr, CalcPctChg1D(quote.lastTrade, instr));
+                    if (marketDbReady)
+                    {
+                        lastSnapshotByInstrument[key] = BuildFixUpdateLastSnapshotItem(
+                            quote, instr, CalcPctChg1D(quote.lastTrade, instr));
+                    }
 
                     var lastUpdate = BuildQuoteLastSignalRUpdate(quote);
                     if (lastUpdate != null)
                         lastByInstrument[key] = lastUpdate;
                 }
-
-                if (quote.bid.HasValue || quote.ask.HasValue)
+                else if (quote.bid.HasValue || quote.ask.HasValue)
                 {
-                    bidAskSnapshotByInstrument[key] = BuildFixUpdateBidAskSnapshotItem(quote, instr);
+                    if (marketDbReady)
+                    {
+                        bidAskSnapshotByInstrument[key] = BuildFixUpdateBidAskSnapshotItem(quote, instr);
+                    }
 
                     var bidAskUpdate = BuildQuoteBidAskSignalRUpdate(quote);
                     if (bidAskUpdate != null)
@@ -1044,24 +1050,27 @@ GO
             var lastUpdates = lastByInstrument.Values.ToList();
             var bidAskUpdates = bidAskByInstrument.Values.ToList();
 
-            try
+            if (marketDbReady)
             {
-                FixDataUpdateSnapshot(JsonConvert.SerializeObject(lastSnapshotByInstrument.Values.ToList()));
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[TimerTick] fixDataUpdateSnapshot (last) error: {ex.Message}");
-                recToLog($"fixDataUpdateSnapshot (last) error: {ex.Message}");
-            }
+                try
+                {
+                    FixDataUpdateSnapshot(JsonConvert.SerializeObject(lastSnapshotByInstrument.Values.ToList()));
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[TimerTick] fixDataUpdateSnapshot (last) error: {ex.Message}");
+                    recToLog($"fixDataUpdateSnapshot (last) error: {ex.Message}");
+                }
 
-            try
-            {
-                FixDataUpdateSnapshot(JsonConvert.SerializeObject(bidAskSnapshotByInstrument.Values.ToList()));
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[TimerTick] fixDataUpdateSnapshot (bid/ask) error: {ex.Message}");
-                recToLog($"fixDataUpdateSnapshot (bid/ask) error: {ex.Message}");
+                try
+                {
+                    FixDataUpdateSnapshot(JsonConvert.SerializeObject(bidAskSnapshotByInstrument.Values.ToList()));
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[TimerTick] fixDataUpdateSnapshot (bid/ask) error: {ex.Message}");
+                    recToLog($"fixDataUpdateSnapshot (bid/ask) error: {ex.Message}");
+                }
             }
 
             var endpoints = GetSignalREndpointsFromCfg();
@@ -1106,19 +1115,19 @@ GO
                 recToLog($"glass update error: {ex.Message}");
             }
 
-            if (lastUpdates.Count == 0 && bidAskUpdates.Count == 0)
+            if (!marketDbReady || (lastUpdates.Count == 0 && bidAskUpdates.Count == 0))
                 return;
 
-            try
-            {
-                BulkInsertSignalRMessagesInstrs(lastUpdates);
-                BulkInsertSignalRMessagesInstrs(bidAskUpdates);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[TimerTick] quotes DB update error: {ex.Message}");
-                recToLog($"quotes DB update error: {ex.Message}");
-            }
+            //try
+            //{
+            //    BulkInsertSignalRMessagesInstrs(lastUpdates);
+            //    BulkInsertSignalRMessagesInstrs(bidAskUpdates);
+            //}
+            //catch (Exception ex)
+            //{
+            //    Console.WriteLine($"[TimerTick] quotes DB update error: {ex.Message}");
+            //    recToLog($"quotes DB update error: {ex.Message}");
+            //}
         }
 
         private async Task PostSignalRPayloadAsync(string jsonPayload, IEnumerable<string> endpoints)
