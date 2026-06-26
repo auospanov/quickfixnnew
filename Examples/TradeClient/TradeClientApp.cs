@@ -832,7 +832,7 @@ GO
 
         private static SignalRQuoteUpdateDto? BuildQuoteBidAskSignalRUpdate(quotesSimple q)
         {
-            if (q == null || string.IsNullOrWhiteSpace(q.ticker) || HasLastTrade(q))
+            if (q == null || string.IsNullOrWhiteSpace(q.ticker))
                 return null;
             if (!q.bid.HasValue && !q.ask.HasValue)
                 return null;
@@ -1030,7 +1030,8 @@ GO
                     if (lastUpdate != null)
                         lastByInstrument[key] = lastUpdate;
                 }
-                else if (quote.bid.HasValue || quote.ask.HasValue)
+
+                if (quote.bid.HasValue || quote.ask.HasValue)
                 {
                     bidAskSnapshotByInstrument[key] = BuildFixUpdateBidAskSnapshotItem(quote, instr);
 
@@ -1067,15 +1068,30 @@ GO
 
             if (endpoints.Count > 0)
             {
-                try
+                if (lastUpdates.Count > 0)
                 {
-                    await SendInstrsSignalRBatchAsync(lastUpdates, endpoints).ConfigureAwait(false);
-                    await SendInstrsSignalRBatchAsync(bidAskUpdates, endpoints).ConfigureAwait(false);
+                    try
+                    {
+                        await SendInstrsSignalRBatchAsync(lastUpdates, endpoints).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[TimerTick] INSTRS SignalR (last) error: {ex.Message}");
+                        recToLog($"INSTRS SignalR (last) error: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
+
+                if (bidAskUpdates.Count > 0)
                 {
-                    Console.WriteLine($"[TimerTick] INSTRS SignalR error: {ex.Message}");
-                    recToLog($"INSTRS SignalR error: {ex.Message}");
+                    try
+                    {
+                        await SendInstrsSignalRBatchAsync(bidAskUpdates, endpoints).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[TimerTick] INSTRS SignalR (bid/ask) error: {ex.Message}");
+                        recToLog($"INSTRS SignalR (bid/ask) error: {ex.Message}");
+                    }
                 }
             }
 
