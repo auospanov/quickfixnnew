@@ -750,81 +750,112 @@ GO
             }
         }
 
-        /// <summary>Формирование MessageText для SignalR (принцип MulticastChat / INSTRS).</summary>
-        private static List<SignalRQuoteUpdateDto> BuildQuoteSignalRUpdates(quotesSimple q)
+        private static bool HasLastTrade(quotesSimple q)
         {
-            var messages = new List<SignalRQuoteUpdateDto>();
-            if (q == null || string.IsNullOrWhiteSpace(q.ticker))
-                return messages;
+            return q.lastTrade.HasValue && q.lastTrade.Value != 0;
+        }
+
+        private static SignalRQuoteUpdateDto? BuildQuoteLastSignalRUpdate(quotesSimple q)
+        {
+            if (q == null || string.IsNullOrWhiteSpace(q.ticker) || !HasLastTrade(q))
+                return null;
 
             string sourceName = GetMarketSourceName();
-            string ticker = q.ticker;
             string tickerVisible = q.ticker;
             string shortName = q.ticker;
             string idObject = "0";
-            string codeMubasher = q.ticker;
-            var instr = ResolveInstrument(ticker);
+            var instr = ResolveInstrument(q.ticker);
             if (instr != null)
             {
                 if (instr.idObject > 0)
                     idObject = instr.idObject.ToString();
                 tickerVisible = instr.tickerVisible ?? q.ticker;
                 shortName = instr.shortName ?? q.ticker;
-                codeMubasher = instr.codeMubasher ?? q.ticker;
             }
 
             decimal pctChg1D = CalcPctChg1D(q.lastTrade, instr);
             string pctChg1DStr = pctChg1D.ToString("# ##0.##", CultureInfo.InvariantCulture).Trim().Replace("- ", "-");
             string pctChg1DColor = pctChg1D > 0 ? "#008000" : pctChg1D < 0 ? "#FF0000" : "#808080";
+            string last1 = q.lastTrade!.Value.ToString(CultureInfo.InvariantCulture);
+            string last1Str = FormatQuotePriceStr(q.lastTrade);
 
-            if (q.bid.HasValue || q.ask.HasValue)
+            const string lastTemplate =
+                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"last1\\\":{last1},\\\"last1Str\\\":\\\"{last1Str}\\\",\\\"pctChg1D\\\":{pctChg1D},\\\"pctChg1DStr\\\":\\\"{pctChg1DStr}\\\",\\\"pctChg1DColor\\\":\\\"{pctChg1DColor}\\\"}]\\\"\"}";
+
+            return new SignalRQuoteUpdateDto
             {
-                string bid = (q.bid ?? 0).ToString(CultureInfo.InvariantCulture);
-                string ask = (q.ask ?? 0).ToString(CultureInfo.InvariantCulture);
-                string bidStr = FormatQuotePriceStr(q.bid);
-                string askStr = FormatQuotePriceStr(q.ask);
-                const string bidAskTemplate =
-                    "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"bid\\\":{bid},\\\"bidStr\\\":\\\"{bidStr}\\\",\\\"ask\\\":{ask},\\\"askStr\\\":\\\"{askStr}\\\"}]\\\"\"}";
-                messages.Add(new SignalRQuoteUpdateDto
-                {
-                    IdObject = idObject,
-                    MessageText = bidAskTemplate
-                        .Replace("{sourceName}", sourceName)
-                        .Replace("{ticker}", tickerVisible)
-                        .Replace("{shortName}", shortName)
-                        .Replace("{tickerVisible}", tickerVisible)
-                        .Replace("{IdObject}", idObject)
-                        .Replace("{bid}", bid)
-                        .Replace("{bidStr}", bidStr)
-                        .Replace("{ask}", ask)
-                        .Replace("{askStr}", askStr)
-                });
+                IdObject = idObject,
+                MessageText = lastTemplate
+                    .Replace("{sourceName}", sourceName)
+                    .Replace("{ticker}", tickerVisible)
+                    .Replace("{shortName}", shortName)
+                    .Replace("{tickerVisible}", tickerVisible)
+                    .Replace("{IdObject}", idObject)
+                    .Replace("{last1}", last1)
+                    .Replace("{last1Str}", last1Str)
+                    .Replace("{pctChg1D}", pctChg1D.ToString(CultureInfo.InvariantCulture))
+                    .Replace("{pctChg1DStr}", pctChg1DStr + "%")
+                    .Replace("{pctChg1DColor}", pctChg1DColor)
+            };
+        }
+
+        private static SignalRQuoteUpdateDto? BuildQuoteBidAskSignalRUpdate(quotesSimple q)
+        {
+            if (q == null || string.IsNullOrWhiteSpace(q.ticker) || HasLastTrade(q))
+                return null;
+            if (!q.bid.HasValue && !q.ask.HasValue)
+                return null;
+
+            string sourceName = GetMarketSourceName();
+            string tickerVisible = q.ticker;
+            string shortName = q.ticker;
+            string idObject = "0";
+            var instr = ResolveInstrument(q.ticker);
+            if (instr != null)
+            {
+                if (instr.idObject > 0)
+                    idObject = instr.idObject.ToString();
+                tickerVisible = instr.tickerVisible ?? q.ticker;
+                shortName = instr.shortName ?? q.ticker;
             }
 
-            if (q.lastTrade.HasValue && q.lastTrade.Value != 0)
-            {
-                string last1 = q.lastTrade.Value.ToString(CultureInfo.InvariantCulture);
-                string last1Str = FormatQuotePriceStr(q.lastTrade);
-                const string lastTemplate =
-                    "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"last1\\\":{last1},\\\"last1Str\\\":\\\"{last1Str}\\\",\\\"pctChg1D\\\":{pctChg1D},\\\"pctChg1DStr\\\":\\\"{pctChg1DStr}\\\",\\\"pctChg1DColor\\\":\\\"{pctChg1DColor}\\\"}]\\\"\"}";
-                messages.Add(new SignalRQuoteUpdateDto
-                {
-                    IdObject = idObject,
-                    MessageText = lastTemplate
-                        .Replace("{sourceName}", sourceName)
-                        .Replace("{ticker}", tickerVisible)
-                        .Replace("{shortName}", shortName)
-                        .Replace("{tickerVisible}", tickerVisible)
-                        .Replace("{IdObject}", idObject)
-                        .Replace("{last1}", last1)
-                        .Replace("{last1Str}", last1Str)
-                        .Replace("{pctChg1D}", pctChg1D.ToString(CultureInfo.InvariantCulture))
-                        .Replace("{pctChg1DStr}", pctChg1DStr + "%")
-                        .Replace("{pctChg1DColor}", pctChg1DColor)
-                });
-            }
+            string bid = (q.bid ?? 0).ToString(CultureInfo.InvariantCulture);
+            string ask = (q.ask ?? 0).ToString(CultureInfo.InvariantCulture);
+            string bidStr = FormatQuotePriceStr(q.bid);
+            string askStr = FormatQuotePriceStr(q.ask);
+            const string bidAskTemplate =
+                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"bid\\\":{bid},\\\"bidStr\\\":\\\"{bidStr}\\\",\\\"ask\\\":{ask},\\\"askStr\\\":\\\"{askStr}\\\"}]\\\"\"}";
 
-            return messages;
+            return new SignalRQuoteUpdateDto
+            {
+                IdObject = idObject,
+                MessageText = bidAskTemplate
+                    .Replace("{sourceName}", sourceName)
+                    .Replace("{ticker}", tickerVisible)
+                    .Replace("{shortName}", shortName)
+                    .Replace("{tickerVisible}", tickerVisible)
+                    .Replace("{IdObject}", idObject)
+                    .Replace("{bid}", bid)
+                    .Replace("{bidStr}", bidStr)
+                    .Replace("{ask}", ask)
+                    .Replace("{askStr}", askStr)
+            };
+        }
+
+        private async Task SendInstrsSignalRBatchAsync(List<SignalRQuoteUpdateDto> updates, List<string> endpoints)
+        {
+            if (updates.Count == 0 || endpoints.Count == 0)
+                return;
+
+            var messageTexts = updates
+                .Select(u => u.MessageText)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
+            if (messageTexts.Count == 0)
+                return;
+
+            string jsonPayload = BuildSignalRMarketDataPayload(messageTexts);
+            await PostSignalRPayloadAsync(jsonPayload, endpoints).ConfigureAwait(false);
         }
 
         /// <summary>Bulk insert в dbo.signalRMessages (как MulticastChat BulkInsertSignalRMessagesInstrs).</summary>
@@ -943,14 +974,24 @@ GO
                 return;
             }
 
-            var updates = new List<SignalRQuoteUpdateDto>();
+            var lastUpdates = new List<SignalRQuoteUpdateDto>();
+            var bidAskUpdates = new List<SignalRQuoteUpdateDto>();
             var snapshotBatch = new List<FixUpdateListItem>();
             foreach (var quote in tempList)
             {
                 var instr = ResolveInstrument(quote.ticker);
                 decimal pctChg1D = CalcPctChg1D(quote.lastTrade, instr);
                 snapshotBatch.Add(BuildFixUpdateSnapshotItem(quote, instr, pctChg1D));
-                updates.AddRange(BuildQuoteSignalRUpdates(quote));
+
+                var lastUpdate = BuildQuoteLastSignalRUpdate(quote);
+                if (lastUpdate != null)
+                    lastUpdates.Add(lastUpdate);
+                else
+                {
+                    var bidAskUpdate = BuildQuoteBidAskSignalRUpdate(quote);
+                    if (bidAskUpdate != null)
+                        bidAskUpdates.Add(bidAskUpdate);
+                }
             }
 
             try
@@ -965,13 +1006,17 @@ GO
 
             var endpoints = GetSignalREndpointsFromCfg();
 
-            if (updates.Count > 0 && endpoints.Count > 0)
+            if (endpoints.Count > 0)
             {
-                var messageTexts = updates.Select(u => u.MessageText).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
-                if (messageTexts.Count > 0)
+                try
                 {
-                    string jsonPayload = BuildSignalRMarketDataPayload(messageTexts);
-                    await PostSignalRPayloadAsync(jsonPayload, endpoints).ConfigureAwait(false);
+                    await SendInstrsSignalRBatchAsync(lastUpdates, endpoints).ConfigureAwait(false);
+                    await SendInstrsSignalRBatchAsync(bidAskUpdates, endpoints).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[TimerTick] INSTRS SignalR error: {ex.Message}");
+                    recToLog($"INSTRS SignalR error: {ex.Message}");
                 }
             }
 
@@ -991,12 +1036,13 @@ GO
                 recToLog($"glass update error: {ex.Message}");
             }
 
-            if (updates.Count == 0)
+            if (lastUpdates.Count == 0 && bidAskUpdates.Count == 0)
                 return;
 
             try
             {
-                BulkInsertSignalRMessagesInstrs(updates);
+                BulkInsertSignalRMessagesInstrs(lastUpdates);
+                BulkInsertSignalRMessagesInstrs(bidAskUpdates);
             }
             catch (Exception ex)
             {
