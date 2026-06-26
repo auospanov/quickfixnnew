@@ -40,7 +40,8 @@ namespace TradeClient
         public static string connection = "";// "Data Source=WIN-DUS0A072PNF\\SQLEXPRESS;Initial Catalog=drivers_beSQL_new;Persist Security Info=True;User ID=platformAdm;Password=Admin$12345";
         public static List<instrsView> instrs = new List<instrsView>();
         private static readonly object _glassContainerLock = new object();
-        public static List<GlobalGlassContainer> glassContainer = new List<GlobalGlassContainer>();
+        /// <summary>Последний стакан по инструменту (ключ — idObject или symbol).</summary>
+        private static readonly Dictionary<string, GlobalGlassContainer> glassContainerByInstrument = new(StringComparer.OrdinalIgnoreCase);
         private Timer _timer;
         private Timer _timerGetOrdersForSend;
         private readonly int _timerBatchCollectMilliseconds = 10_000; // например, 10 секунд
@@ -556,6 +557,49 @@ GO
             return lastTrade.Value * 100m / instr.lastPrevDay - 100m;
         }
 
+        private static string GetInstrumentSnapshotKey(FixUpdateListItem item, string? tickerFallback)
+        {
+            if (!string.IsNullOrEmpty(item.idObject) && item.idObject != "0")
+                return item.idObject;
+            return tickerFallback ?? "";
+        }
+
+        /// <summary>Оставляет по одной актуальной записи на инструмент (последние bid/ask/last).</summary>
+        private static List<FixUpdateListItem> BuildLatestSnapshotBatchFromQuotes(IEnumerable<quotesSimple> quotes)
+        {
+            var byInstrument = new Dictionary<string, FixUpdateListItem>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var quote in quotes)
+            {
+                if (quote == null || string.IsNullOrWhiteSpace(quote.ticker))
+                    continue;
+
+                var instr = ResolveInstrument(quote.ticker);
+                var incoming = BuildFixUpdateSnapshotItem(quote, instr, CalcPctChg1D(quote.lastTrade, instr));
+                string key = GetInstrumentSnapshotKey(incoming, quote.ticker);
+                if (string.IsNullOrEmpty(key))
+                    continue;
+
+                if (!byInstrument.TryGetValue(key, out var existing))
+                {
+                    byInstrument[key] = incoming;
+                    continue;
+                }
+
+                if (incoming.bid.HasValue)
+                    existing.bid = incoming.bid;
+                if (incoming.ask.HasValue)
+                    existing.ask = incoming.ask;
+                if (incoming.last.HasValue && incoming.last.Value != 0)
+                {
+                    existing.last = incoming.last;
+                    existing.changepct1d = incoming.changepct1d;
+                }
+            }
+
+            return byInstrument.Values.ToList();
+        }
+
         private static void FixDataUpdateSnapshot(string json)
         {
             if (string.IsNullOrWhiteSpace(json) || json == "[]")
@@ -740,13 +784,27 @@ GO
                 Data = glassEntries
             };
 
+            string instrumentKey = instr.idObject > 0 ? instr.idObject.ToString() : symbol;
             lock (_glassContainerLock)
             {
-                glassContainer.Add(new GlobalGlassContainer
+                glassContainerByInstrument[instrumentKey] = new GlobalGlassContainer
                 {
                     ObjectId = instr.idObject.ToString(),
                     glassContainers = new List<GlassContainerDto> { container }
-                });
+                };
+            }
+        }
+
+        private static List<GlobalGlassContainer> DrainLatestGlassContainers()
+        {
+            lock (_glassContainerLock)
+            {
+                if (glassContainerByInstrument.Count == 0)
+                    return new List<GlobalGlassContainer>();
+
+                var batch = glassContainerByInstrument.Values.ToList();
+                glassContainerByInstrument.Clear();
+                return batch;
             }
         }
 
@@ -974,25 +1032,35 @@ GO
                 return;
             }
 
-            var lastUpdates = new List<SignalRQuoteUpdateDto>();
-            var bidAskUpdates = new List<SignalRQuoteUpdateDto>();
-            var snapshotBatch = new List<FixUpdateListItem>();
+            var lastByInstrument = new Dictionary<string, SignalRQuoteUpdateDto>(StringComparer.OrdinalIgnoreCase);
+            var bidAskByInstrument = new Dictionary<string, SignalRQuoteUpdateDto>(StringComparer.OrdinalIgnoreCase);
+
             foreach (var quote in tempList)
             {
-                var instr = ResolveInstrument(quote.ticker);
-                decimal pctChg1D = CalcPctChg1D(quote.lastTrade, instr);
-                snapshotBatch.Add(BuildFixUpdateSnapshotItem(quote, instr, pctChg1D));
-
                 var lastUpdate = BuildQuoteLastSignalRUpdate(quote);
                 if (lastUpdate != null)
-                    lastUpdates.Add(lastUpdate);
+                {
+                    string key = !string.IsNullOrEmpty(lastUpdate.IdObject) && lastUpdate.IdObject != "0"
+                        ? lastUpdate.IdObject
+                        : quote.ticker;
+                    lastByInstrument[key] = lastUpdate;
+                }
                 else
                 {
                     var bidAskUpdate = BuildQuoteBidAskSignalRUpdate(quote);
                     if (bidAskUpdate != null)
-                        bidAskUpdates.Add(bidAskUpdate);
+                    {
+                        string key = !string.IsNullOrEmpty(bidAskUpdate.IdObject) && bidAskUpdate.IdObject != "0"
+                            ? bidAskUpdate.IdObject
+                            : quote.ticker;
+                        bidAskByInstrument[key] = bidAskUpdate;
+                    }
                 }
             }
+
+            var snapshotBatch = BuildLatestSnapshotBatchFromQuotes(tempList);
+            var lastUpdates = lastByInstrument.Values.ToList();
+            var bidAskUpdates = bidAskByInstrument.Values.ToList();
 
             try
             {
@@ -1020,12 +1088,7 @@ GO
                 }
             }
 
-            List<GlobalGlassContainer> glassBatch;
-            lock (_glassContainerLock)
-            {
-                glassBatch = glassContainer.ToList();
-                glassContainer.Clear();
-            }
+            List<GlobalGlassContainer> glassBatch = DrainLatestGlassContainers();
             try
             {
                 await ProcessGlassSignalRAsync(glassBatch, endpoints).ConfigureAwait(false);
@@ -1090,7 +1153,7 @@ GO
                 {
                     bool hasGlass;
                     lock (_glassContainerLock)
-                        hasGlass = glassContainer.Count > 0;
+                        hasGlass = glassContainerByInstrument.Count > 0;
 
                     // ветка 2: snapshot + INSTRS SignalR + GLASS + signalRMessages
                     if (tempList.Count > 0 || hasGlass)
