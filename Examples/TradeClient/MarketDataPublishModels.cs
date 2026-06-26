@@ -40,6 +40,11 @@ namespace TradeClient
 
         [JsonProperty("objectType", Order = 5)]
         public string ObjectType { get; set; } = "GLASS";
+
+        [JsonProperty("isin", Order = 6)]
+        public string isin { get; set; } = "";
+        [JsonProperty("tradeCurrency", Order = 7)]
+        public string tradeCurrency { get; set; } = "";
     }
 
     public sealed class GlassEntryDto

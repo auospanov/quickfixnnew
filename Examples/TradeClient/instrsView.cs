@@ -17,6 +17,8 @@ namespace TradeClient
         public long idObject { get;set;}
         public string? tickerVisible { get;set;}
         public string? shortName { get;set;}
+        public string? isin { get;set;}
+        public string? tradeCurrency { get;set;}
         public decimal lastPrevDay { get;set;}
     }
     public class NewOrders

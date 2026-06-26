@@ -820,6 +820,9 @@ GO
                 Ticker = ticker,
                 ShortName = instr.shortName ?? symbol,
                 SourceName = sourceName,
+                isin = instr.isin,
+                tradeCurrency = instr.tradeCurrency,
+
                 ObjectType = "GLASS",
                 Data = glassEntries
             };
@@ -862,7 +865,7 @@ GO
             string last1Str = FormatQuotePriceStr(q.lastTrade);
 
             const string lastTemplate =
-                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"last1\\\":{last1},\\\"last1Str\\\":\\\"{last1Str}\\\",\\\"pctChg1D\\\":{pctChg1D},\\\"pctChg1DStr\\\":\\\"{pctChg1DStr}\\\",\\\"pctChg1DColor\\\":\\\"{pctChg1DColor}\\\"}]\\\"\"}";
+                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"last1\\\":{last1},\\\"last1Str\\\":\\\"{last1Str}\\\",\\\"pctChg1D\\\":{pctChg1D},\\\"pctChg1DStr\\\":\\\"{pctChg1DStr}\\\",\\\"pctChg1DColor\\\":\\\"{pctChg1DColor}\\\"}]\\\"\"}";
 
             return new SignalRQuoteUpdateDto
             {
@@ -870,6 +873,8 @@ GO
                 MessageText = lastTemplate
                     .Replace("{sourceName}", sourceName)
                     .Replace("{ticker}", tickerVisible)
+                    .Replace("{isin}", instr.isin)
+                    .Replace("{tradeCurrency}", instr.tradeCurrency)
                     .Replace("{shortName}", shortName)
                     .Replace("{tickerVisible}", tickerVisible)
                     .Replace("{IdObject}", idObject)
@@ -906,7 +911,7 @@ GO
             string bidStr = FormatQuotePriceStr(q.bid);
             string askStr = FormatQuotePriceStr(q.ask);
             const string bidAskTemplate =
-                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"bid\\\":{bid},\\\"bidStr\\\":\\\"{bidStr}\\\",\\\"ask\\\":{ask},\\\"askStr\\\":\\\"{askStr}\\\"}]\\\"\"}";
+                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"bid\\\":{bid},\\\"bidStr\\\":\\\"{bidStr}\\\",\\\"ask\\\":{ask},\\\"askStr\\\":\\\"{askStr}\\\"}]\\\"\"}";
 
             return new SignalRQuoteUpdateDto
             {
@@ -914,6 +919,8 @@ GO
                 MessageText = bidAskTemplate
                     .Replace("{sourceName}", sourceName)
                     .Replace("{ticker}", tickerVisible)
+                    .Replace("{isin}", instr.isin)
+                    .Replace("{tradeCurrency}", instr.tradeCurrency)
                     .Replace("{shortName}", shortName)
                     .Replace("{tickerVisible}", tickerVisible)
                     .Replace("{IdObject}", idObject)
@@ -1420,7 +1427,9 @@ GO
                                         idObject = instrView.idObject,
                                         tickerVisible = instrView.tickerVisible,
                                         shortName = instrView.shortName,
-                                        lastPrevDay = instrView.lastPrevDay
+                                        lastPrevDay = instrView.lastPrevDay,
+                                        isin = instrView.isin,
+                                        tradeCurrency = instrView.tradeCurrency
                                     });
                                 }
                                 catch (Exception ex)
