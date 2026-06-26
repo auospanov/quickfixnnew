@@ -413,42 +413,6 @@ GO
         }
 
         /// <summary>
-        /// Вызов dbo.fixDataUpdateNew на БД маркет-данных (ConnectionStringMarketData).
-        /// </summary>
-        public static (string resCode, string resultString) FixGetUpdateDataNewMarketData(string data)
-        {
-            if (string.IsNullOrEmpty(data))
-                return ("-1", "");
-            try
-            {
-                var sharedConn = MarketDataDbContextFactory.GetSharedConnection();
-                if (sharedConn != null && sharedConn.State == ConnectionState.Open)
-                {
-                    lock (sharedConn)
-                    {
-                        using (var cmd = new SqlCommand("dbo.fixDataUpdateNew", sharedConn))
-                        {
-                            cmd.CommandType = CommandType.StoredProcedure;
-                            cmd.Parameters.Add(new SqlParameter("@messageText", SqlDbType.NVarChar, -1) { Value = data, Direction = ParameterDirection.Input });
-                            var pResCode = new SqlParameter("@resCode", SqlDbType.VarChar, 10) { Direction = ParameterDirection.InputOutput, Value = "-1" };
-                            var pResult = new SqlParameter("@resultString", SqlDbType.NVarChar, -1) { Direction = ParameterDirection.Output };
-                            cmd.Parameters.Add(pResCode);
-                            cmd.Parameters.Add(pResult);
-                            cmd.ExecuteNonQuery();
-                            return (pResCode.Value?.ToString() ?? "-1", pResult.Value?.ToString() ?? "");
-                        }
-                    }
-                }
-                return ("-1", "");
-            }
-            catch (Exception ex)
-            {
-                DailyLogger.Log($"[FixGetUpdateDataNewMarketData] {ex.Message}");
-                return ("-1", "");
-            }
-        }
-
-        /// <summary>
         /// Запрос в АИС (Oracle) списка заявок, готовых для отправки на FIX; для каждой вызывается FixGetUpdateDataNew.
         /// </summary>
         private void HbGetOrdersForSend()
@@ -570,32 +534,6 @@ GO
                 return null;
             return instrs.FirstOrDefault(i =>
                 string.Equals(i.symbol, symbol, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static string BuildFixDataUpdateJson(
-            string sourceName,
-            string idObject,
-            string codeMubasher,
-            decimal? bid,
-            decimal? ask,
-            decimal? lastPrice)
-        {
-            var payload = new Dictionary<string, object>
-            {
-                ["typeQuery"] = "UPDATE",
-                ["objectType"] = "INSTRS",
-                ["sourceName"] = sourceName,
-                ["idObject"] = idObject,
-                ["codeMubasher"] = codeMubasher,
-                ["updateAction"] = "MSR"
-            };
-            if (bid.HasValue)
-                payload["bid"] = bid.Value.ToString(CultureInfo.InvariantCulture);
-            if (ask.HasValue)
-                payload["ask"] = ask.Value.ToString(CultureInfo.InvariantCulture);
-            if (lastPrice.HasValue && lastPrice.Value != 0)
-                payload["lastPrice"] = lastPrice.Value.ToString(CultureInfo.InvariantCulture);
-            return JsonConvert.SerializeObject(payload);
         }
 
         private static FixUpdateListItem BuildFixUpdateSnapshotItem(quotesSimple q, instrsView? instr, decimal pctChg1D)
@@ -859,8 +797,7 @@ GO
                         .Replace("{bid}", bid)
                         .Replace("{bidStr}", bidStr)
                         .Replace("{ask}", ask)
-                        .Replace("{askStr}", askStr),
-                    ProcedureJson = BuildFixDataUpdateJson(sourceName, idObject, codeMubasher, q.bid, q.ask, null)
+                        .Replace("{askStr}", askStr)
                 });
             }
 
@@ -883,8 +820,7 @@ GO
                         .Replace("{last1Str}", last1Str)
                         .Replace("{pctChg1D}", pctChg1D.ToString(CultureInfo.InvariantCulture))
                         .Replace("{pctChg1DStr}", pctChg1DStr + "%")
-                        .Replace("{pctChg1DColor}", pctChg1DColor),
-                    ProcedureJson = BuildFixDataUpdateJson(sourceName, idObject, codeMubasher, null, null, q.lastTrade)
+                        .Replace("{pctChg1DColor}", pctChg1DColor)
                 });
             }
 
@@ -925,17 +861,6 @@ GO
                     bulk.ColumnMappings.Add("messageText", "messageText");
                     bulk.WriteToServer(table);
                 }
-            }
-        }
-
-        /// <summary>Вызов dbo.fixDataUpdateNew для каждого сообщения котировки (контракт typeQuery/UPDATE).</summary>
-        private static void FixDataUpdateQuoteMessages(IEnumerable<SignalRQuoteUpdateDto> updates)
-        {
-            foreach (var update in updates)
-            {
-                if (string.IsNullOrWhiteSpace(update.ProcedureJson))
-                    continue;
-                FixGetUpdateDataNewMarketData(update.ProcedureJson);
             }
         }
 
@@ -1072,7 +997,6 @@ GO
             try
             {
                 BulkInsertSignalRMessagesInstrs(updates);
-                FixDataUpdateQuoteMessages(updates);
             }
             catch (Exception ex)
             {
@@ -1122,7 +1046,7 @@ GO
                     lock (_glassContainerLock)
                         hasGlass = glassContainer.Count > 0;
 
-                    // ветка 2: snapshot + INSTRS SignalR + GLASS + signalRMessages + fixDataUpdateNew
+                    // ветка 2: snapshot + INSTRS SignalR + GLASS + signalRMessages
                     if (tempList.Count > 0 || hasGlass)
                         _ = Task.Run(() => ProcessQuotesSignalRBranchAsync(tempList));
                 }

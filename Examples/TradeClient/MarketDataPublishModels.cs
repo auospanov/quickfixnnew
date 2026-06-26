@@ -16,7 +16,6 @@ namespace TradeClient
     {
         public string IdObject { get; set; } = "";
         public string MessageText { get; set; } = "";
-        public string ProcedureJson { get; set; } = "";
     }
 
     public sealed class GlobalGlassContainer
