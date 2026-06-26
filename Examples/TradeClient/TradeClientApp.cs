@@ -537,16 +537,25 @@ GO
                 string.Equals(i.symbol, symbol, StringComparison.OrdinalIgnoreCase));
         }
 
-        private static FixUpdateListItem BuildFixUpdateSnapshotItem(quotesSimple q, instrsView? instr, decimal pctChg1D)
+        private static FixUpdateListItem BuildFixUpdateLastSnapshotItem(quotesSimple q, instrsView? instr, decimal pctChg1D)
+        {
+            string idObject = instr != null && instr.idObject > 0 ? instr.idObject.ToString() : "0";
+            return new FixUpdateListItem
+            {
+                idObject = idObject,
+                last = q.lastTrade,
+                changepct1d = pctChg1D
+            };
+        }
+
+        private static FixUpdateListItem BuildFixUpdateBidAskSnapshotItem(quotesSimple q, instrsView? instr)
         {
             string idObject = instr != null && instr.idObject > 0 ? instr.idObject.ToString() : "0";
             return new FixUpdateListItem
             {
                 idObject = idObject,
                 bid = q.bid,
-                ask = q.ask,
-                last = q.lastTrade,
-                changepct1d = pctChg1D
+                ask = q.ask
             };
         }
 
@@ -557,47 +566,11 @@ GO
             return lastTrade.Value * 100m / instr.lastPrevDay - 100m;
         }
 
-        private static string GetInstrumentSnapshotKey(FixUpdateListItem item, string? tickerFallback)
+        private static string GetInstrumentKey(string idObject, string? tickerFallback)
         {
-            if (!string.IsNullOrEmpty(item.idObject) && item.idObject != "0")
-                return item.idObject;
+            if (!string.IsNullOrEmpty(idObject) && idObject != "0")
+                return idObject;
             return tickerFallback ?? "";
-        }
-
-        /// <summary>Оставляет по одной актуальной записи на инструмент (последние bid/ask/last).</summary>
-        private static List<FixUpdateListItem> BuildLatestSnapshotBatchFromQuotes(IEnumerable<quotesSimple> quotes)
-        {
-            var byInstrument = new Dictionary<string, FixUpdateListItem>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var quote in quotes)
-            {
-                if (quote == null || string.IsNullOrWhiteSpace(quote.ticker))
-                    continue;
-
-                var instr = ResolveInstrument(quote.ticker);
-                var incoming = BuildFixUpdateSnapshotItem(quote, instr, CalcPctChg1D(quote.lastTrade, instr));
-                string key = GetInstrumentSnapshotKey(incoming, quote.ticker);
-                if (string.IsNullOrEmpty(key))
-                    continue;
-
-                if (!byInstrument.TryGetValue(key, out var existing))
-                {
-                    byInstrument[key] = incoming;
-                    continue;
-                }
-
-                if (incoming.bid.HasValue)
-                    existing.bid = incoming.bid;
-                if (incoming.ask.HasValue)
-                    existing.ask = incoming.ask;
-                if (incoming.last.HasValue && incoming.last.Value != 0)
-                {
-                    existing.last = incoming.last;
-                    existing.changepct1d = incoming.changepct1d;
-                }
-            }
-
-            return byInstrument.Values.ToList();
         }
 
         private static void FixDataUpdateSnapshot(string json)
@@ -1034,42 +1007,60 @@ GO
 
             var lastByInstrument = new Dictionary<string, SignalRQuoteUpdateDto>(StringComparer.OrdinalIgnoreCase);
             var bidAskByInstrument = new Dictionary<string, SignalRQuoteUpdateDto>(StringComparer.OrdinalIgnoreCase);
+            var lastSnapshotByInstrument = new Dictionary<string, FixUpdateListItem>(StringComparer.OrdinalIgnoreCase);
+            var bidAskSnapshotByInstrument = new Dictionary<string, FixUpdateListItem>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var quote in tempList)
             {
-                var lastUpdate = BuildQuoteLastSignalRUpdate(quote);
-                if (lastUpdate != null)
+                if (quote == null || string.IsNullOrWhiteSpace(quote.ticker))
+                    continue;
+
+                var instr = ResolveInstrument(quote.ticker);
+                string idObject = instr != null && instr.idObject > 0 ? instr.idObject.ToString() : "0";
+                string key = GetInstrumentKey(idObject, quote.ticker);
+                if (string.IsNullOrEmpty(key))
+                    continue;
+
+                if (HasLastTrade(quote))
                 {
-                    string key = !string.IsNullOrEmpty(lastUpdate.IdObject) && lastUpdate.IdObject != "0"
-                        ? lastUpdate.IdObject
-                        : quote.ticker;
-                    lastByInstrument[key] = lastUpdate;
+                    lastSnapshotByInstrument[key] = BuildFixUpdateLastSnapshotItem(
+                        quote, instr, CalcPctChg1D(quote.lastTrade, instr));
+
+                    var lastUpdate = BuildQuoteLastSignalRUpdate(quote);
+                    if (lastUpdate != null)
+                        lastByInstrument[key] = lastUpdate;
                 }
-                else
+                else if (quote.bid.HasValue || quote.ask.HasValue)
                 {
+                    bidAskSnapshotByInstrument[key] = BuildFixUpdateBidAskSnapshotItem(quote, instr);
+
                     var bidAskUpdate = BuildQuoteBidAskSignalRUpdate(quote);
                     if (bidAskUpdate != null)
-                    {
-                        string key = !string.IsNullOrEmpty(bidAskUpdate.IdObject) && bidAskUpdate.IdObject != "0"
-                            ? bidAskUpdate.IdObject
-                            : quote.ticker;
                         bidAskByInstrument[key] = bidAskUpdate;
-                    }
                 }
             }
 
-            var snapshotBatch = BuildLatestSnapshotBatchFromQuotes(tempList);
             var lastUpdates = lastByInstrument.Values.ToList();
             var bidAskUpdates = bidAskByInstrument.Values.ToList();
 
             try
             {
-                FixDataUpdateSnapshot(JsonConvert.SerializeObject(snapshotBatch));
+                FixDataUpdateSnapshot(JsonConvert.SerializeObject(lastSnapshotByInstrument.Values.ToList()));
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[TimerTick] fixDataUpdateSnapshot error: {ex.Message}");
-                recToLog($"fixDataUpdateSnapshot error: {ex.Message}");
+                Console.WriteLine($"[TimerTick] fixDataUpdateSnapshot (last) error: {ex.Message}");
+                recToLog($"fixDataUpdateSnapshot (last) error: {ex.Message}");
+            }
+
+            try
+            {
+                FixDataUpdateSnapshot(JsonConvert.SerializeObject(bidAskSnapshotByInstrument.Values.ToList()));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TimerTick] fixDataUpdateSnapshot (bid/ask) error: {ex.Message}");
+                recToLog($"fixDataUpdateSnapshot (bid/ask) error: {ex.Message}");
             }
 
             var endpoints = GetSignalREndpointsFromCfg();
