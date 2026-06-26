@@ -899,12 +899,14 @@ GO
             table.Columns.Add("idObject", typeof(string));
             table.Columns.Add("objectType", typeof(string));
             table.Columns.Add("messageText", typeof(string));
-
+            table.Columns.Add("isSended", typeof(int));
+            table.Columns.Add("proccessedDate", typeof(DateTime));
+            
             foreach (var update in updates)
             {
                 if (string.IsNullOrWhiteSpace(update.MessageText))
                     continue;
-                table.Rows.Add(update.IdObject ?? "", objectType, update.MessageText);
+                table.Rows.Add(update.IdObject ?? "", objectType, update.MessageText, 1, DateTime.Now);
             }
             if (table.Rows.Count == 0)
                 return;
@@ -921,6 +923,9 @@ GO
                     bulk.ColumnMappings.Add("idObject", "idObject");
                     bulk.ColumnMappings.Add("objectType", "objectType");
                     bulk.ColumnMappings.Add("messageText", "messageText");
+                    bulk.ColumnMappings.Add("isSended", "isSended");
+                    bulk.ColumnMappings.Add("proccessedDate", "proccessedDate");
+                    
                     bulk.WriteToServer(table);
                 }
             }
@@ -1118,16 +1123,16 @@ GO
             if (!marketDbReady || (lastUpdates.Count == 0 && bidAskUpdates.Count == 0))
                 return;
 
-            //try
-            //{
-            //    BulkInsertSignalRMessagesInstrs(lastUpdates);
-            //    BulkInsertSignalRMessagesInstrs(bidAskUpdates);
-            //}
-            //catch (Exception ex)
-            //{
-            //    Console.WriteLine($"[TimerTick] quotes DB update error: {ex.Message}");
-            //    recToLog($"quotes DB update error: {ex.Message}");
-            //}
+            try
+            {
+                BulkInsertSignalRMessagesInstrs(lastUpdates);
+                BulkInsertSignalRMessagesInstrs(bidAskUpdates);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TimerTick] quotes DB update error: {ex.Message}");
+                recToLog($"quotes DB update error: {ex.Message}");
+            }
         }
 
         private async Task PostSignalRPayloadAsync(string jsonPayload, IEnumerable<string> endpoints)
