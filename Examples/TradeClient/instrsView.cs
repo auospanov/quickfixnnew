@@ -11,9 +11,12 @@ namespace TradeClient
     public class instrsView
     {
         [NotMapped]
-        public string requestId { get; set; }
-        public string symbol { get; set; }
-        public string codeMubasher { get; set; }       
+        public string? requestId { get; set; }
+        public string? symbol { get; set; }
+        public string? codeMubasher { get; set; }   
+        public long idObject { get;set;}
+        public string? tickerVisible { get;set;}
+        public string? shortName { get;set;}
     }
     public class NewOrders
     {

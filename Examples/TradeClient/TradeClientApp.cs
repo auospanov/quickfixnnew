@@ -570,15 +570,17 @@ GO
                 return messages;
 
             string sourceName = Program.EXCH_CODE ?? Program.ADAPTER ?? "FIX";
+            sourceName = sourceName.ToUpper() == "EXANTE" ? "INTL":sourceName;
             string ticker = q.ticker;
             string tickerVisible = q.ticker;
             string shortName = q.ticker;
             string idObject = "0";
             var instr = instrs.FirstOrDefault(i =>
                 string.Equals(i.symbol, ticker, StringComparison.OrdinalIgnoreCase));
-            if (instr != null && !string.IsNullOrWhiteSpace(instr.codeMubasher))
-                idObject = instr.codeMubasher;
-
+            if (instr != null && !string.IsNullOrWhiteSpace(instr.idObject.ToString()))
+                idObject = instr.idObject.ToString();
+            tickerVisible = instr.tickerVisible;
+            ticker = instr.shortName;
             if (q.bid.HasValue || q.ask.HasValue)
             {
                 string bid = (q.bid ?? 0).ToString(CultureInfo.InvariantCulture);
@@ -928,7 +930,10 @@ GO
                                     {
                                         symbol = instrView.symbol,
                                         codeMubasher = instrView.codeMubasher,
-                                        requestId = requestId
+                                        requestId = requestId,
+                                        idObject = instrView.idObject,
+                                        tickerVisible = instrView.tickerVisible,
+                                        shortName = instrView.shortName
                                     });
                                 }
                                 catch (Exception ex)

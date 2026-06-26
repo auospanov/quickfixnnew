@@ -48,8 +48,8 @@ namespace TradeClient
            .Entity<instrsView>(entity =>
            {
                entity.ToView("instrsView"); // имя вьюшки в БД
-               //entity.HasKey(e => e.Id); // указываем ключ
-               entity.HasNoKey();
+               entity.HasKey(e => e.idObject); // указываем ключ
+               //entity.HasNoKey();
            });
             modelBuilder.Entity<settingsTP>().ToTable(nameof(settingsTP), t => t.ExcludeFromMigrations());
             modelBuilder
