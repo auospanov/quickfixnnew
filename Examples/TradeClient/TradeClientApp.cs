@@ -972,7 +972,7 @@ GO
             }
         }
 
-        private async Task ProcessGlassSignalRAsync(List<GlobalGlassContainer> glassBatch, List<string> endpoints)
+        private void ProcessGlassSignalRAsync(List<GlobalGlassContainer> glassBatch, List<string> endpoints)
         {
             if (glassBatch.Count == 0)
                 return;
@@ -987,7 +987,7 @@ GO
             if (endpoints.Count > 0)
             {
                 string jsonPayload = BuildGlassSignalRPayload(containers);
-                await PostSignalRPayloadAsync(jsonPayload, endpoints).ConfigureAwait(false);
+                _ = PostSignalRPayloadAsync(jsonPayload, endpoints);
             }
 
             if (!MarketDataDbContextFactory.IsInitialized)
@@ -1112,7 +1112,7 @@ GO
             List<GlobalGlassContainer> glassBatch = DrainLatestGlassContainers();
             try
             {
-                await ProcessGlassSignalRAsync(glassBatch, endpoints).ConfigureAwait(false);
+                ProcessGlassSignalRAsync(glassBatch, endpoints);
             }
             catch (Exception ex)
             {
