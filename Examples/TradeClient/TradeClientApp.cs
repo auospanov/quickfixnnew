@@ -574,17 +574,70 @@ GO
             return tickerFallback ?? "";
         }
 
-        /// <summary>Последняя котировка по каждому тикеру в пачке (не глобальный порядок msgNum).</summary>
-        private static List<quotesSimple> GetLatestQuotePerTicker(IEnumerable<quotesSimple> quotes)
+        private static int GetQuoteSequence(quotesSimple q)
+        {
+            return int.TryParse(q.msgNum, out int seq) ? seq : 0;
+        }
+
+        private static IEnumerable<quotesSimple> OrderQuotesChronologically(IEnumerable<quotesSimple> quotes)
         {
             return quotes
+                .OrderBy(GetQuoteSequence)
+                .ThenBy(q => q.sendingTime ?? "", StringComparer.Ordinal);
+        }
+
+        private sealed class TickerQuoteAggregate
+        {
+            public string Ticker { get; set; } = "";
+            public string Key { get; set; } = "";
+            public instrsView? Instr { get; set; }
+            public decimal? LastTrade { get; set; }
+            public decimal? Bid { get; set; }
+            public decimal? Ask { get; set; }
+        }
+
+        /// <summary>
+        /// Вся пачка quotesSimple: по тикеру последний last и последняя пара bid+ask из одного сообщения (last отдельно от bid/ask).
+        /// </summary>
+        private static Dictionary<string, TickerQuoteAggregate> CollectLatestPerTickerFromBatch(IEnumerable<quotesSimple> batch)
+        {
+            var result = new Dictionary<string, TickerQuoteAggregate>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var tickerGroup in batch
                 .Where(q => q != null && !string.IsNullOrWhiteSpace(q.ticker))
-                .GroupBy(q => q.ticker!, StringComparer.OrdinalIgnoreCase)
-                .Select(g => g
-                    .OrderByDescending(q => int.TryParse(q.msgNum, out int seq) ? seq : 0)
-                    .ThenByDescending(q => q.sendingTime ?? "", StringComparer.Ordinal)
-                    .First())
-                .ToList();
+                .GroupBy(q => q.ticker!, StringComparer.OrdinalIgnoreCase))
+            {
+                var instr = ResolveInstrument(tickerGroup.Key);
+                string idObject = instr != null && instr.idObject > 0 ? instr.idObject.ToString() : "0";
+                string key = GetInstrumentKey(idObject, tickerGroup.Key);
+                if (string.IsNullOrEmpty(key))
+                    continue;
+
+                var agg = new TickerQuoteAggregate
+                {
+                    Ticker = tickerGroup.Key,
+                    Key = key,
+                    Instr = instr
+                };
+
+                foreach (var quote in OrderQuotesChronologically(tickerGroup))
+                {
+                    if (HasLastTrade(quote))
+                        agg.LastTrade = quote.lastTrade;
+
+                    // bid и ask всегда парой из одного сообщения
+                    if (quote.bid.HasValue || quote.ask.HasValue)
+                    {
+                        agg.Bid = quote.bid;
+                        agg.Ask = quote.ask;
+                    }
+                }
+
+                if (agg.LastTrade.HasValue || agg.Bid.HasValue || agg.Ask.HasValue)
+                    result[key] = agg;
+            }
+
+            return result;
         }
 
         private static void FixDataUpdateSnapshot(string json)
@@ -904,7 +957,7 @@ GO
             {
                 if (string.IsNullOrWhiteSpace(update.MessageText))
                     continue;
-                table.Rows.Add(update.IdObject ?? "", objectType, update.MessageText, 0, DateTime.Now);
+                table.Rows.Add(update.IdObject ?? "", objectType, update.MessageText, 1, DateTime.Now);
             }
             if (table.Rows.Count == 0)
                 return;
@@ -1070,37 +1123,44 @@ GO
             var lastSnapshotByInstrument = new Dictionary<string, FixUpdateListItem>(StringComparer.OrdinalIgnoreCase);
             var bidAskSnapshotByInstrument = new Dictionary<string, FixUpdateListItem>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var quote in GetLatestQuotePerTicker(tempList))
+            foreach (var agg in CollectLatestPerTickerFromBatch(tempList).Values)
             {
-                var instr = ResolveInstrument(quote.ticker);
-                string idObject = instr != null && instr.idObject > 0 ? instr.idObject.ToString() : "0";
-                string key = GetInstrumentKey(idObject, quote.ticker);
-                if (string.IsNullOrEmpty(key))
-                    continue;
-
-                if (HasLastTrade(quote))
+                if (agg.LastTrade.HasValue && agg.LastTrade.Value != 0)
                 {
+                    var lastQuote = new quotesSimple
+                    {
+                        ticker = agg.Ticker,
+                        lastTrade = agg.LastTrade
+                    };
+
                     if (marketDbReady)
                     {
-                        lastSnapshotByInstrument[key] = BuildFixUpdateLastSnapshotItem(
-                            quote, instr, CalcPctChg1D(quote.lastTrade, instr));
+                        lastSnapshotByInstrument[agg.Key] = BuildFixUpdateLastSnapshotItem(
+                            lastQuote, agg.Instr, CalcPctChg1D(agg.LastTrade, agg.Instr));
                     }
 
-                    var lastUpdate = BuildQuoteLastSignalRUpdate(quote);
+                    var lastUpdate = BuildQuoteLastSignalRUpdate(lastQuote);
                     if (lastUpdate != null)
-                        lastByInstrument[key] = lastUpdate;
+                        lastByInstrument[agg.Key] = lastUpdate;
                 }
 
-                if (quote.bid.HasValue || quote.ask.HasValue)
+                if (agg.Bid.HasValue || agg.Ask.HasValue)
                 {
+                    var bidAskQuote = new quotesSimple
+                    {
+                        ticker = agg.Ticker,
+                        bid = agg.Bid,
+                        ask = agg.Ask
+                    };
+
                     if (marketDbReady)
                     {
-                        bidAskSnapshotByInstrument[key] = BuildFixUpdateBidAskSnapshotItem(quote, instr);
+                        bidAskSnapshotByInstrument[agg.Key] = BuildFixUpdateBidAskSnapshotItem(bidAskQuote, agg.Instr);
                     }
 
-                    var bidAskUpdate = BuildQuoteBidAskSignalRUpdate(quote);
+                    var bidAskUpdate = BuildQuoteBidAskSignalRUpdate(bidAskQuote);
                     if (bidAskUpdate != null)
-                        bidAskByInstrument[key] = bidAskUpdate;
+                        bidAskByInstrument[agg.Key] = bidAskUpdate;
                 }
             }
 
