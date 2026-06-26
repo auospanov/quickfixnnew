@@ -715,6 +715,14 @@ GO
             return JsonConvert.SerializeObject(new List<GlassContainerDto> { container });
         }
 
+        /// <summary>SignalR payload только для GLASS: json-массив [{...}] → Base64.</summary>
+        private static string BuildGlassSignalRPayload(IReadOnlyList<GlassContainerDto> containers)
+        {
+            string jsonArray = JsonConvert.SerializeObject(containers);
+            string encodedString = Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonArray));
+            return JsonConvert.SerializeObject(new { Type = "sendMarketDataITS", Payload = encodedString });
+        }
+
         private static string FormatGlassPriceStr(decimal price)
         {
             return price.ToString("# ##0.######", CultureInfo.InvariantCulture).Trim();
@@ -977,25 +985,23 @@ GO
             if (glassBatch.Count == 0)
                 return;
 
-            var messageList = new List<string>();
-            foreach (var group in glassBatch)
-            {
-                if (group.glassContainers == null || group.glassContainers.Count == 0)
-                    continue;
-                messageList.Add(JsonConvert.SerializeObject(group.glassContainers[0]));
-            }
-            if (messageList.Count == 0)
+            var containers = glassBatch
+                .Where(g => g.glassContainers != null && g.glassContainers.Count > 0)
+                .Select(g => g.glassContainers[0])
+                .ToList();
+            if (containers.Count == 0)
                 return;
 
             if (endpoints.Count > 0)
             {
-                string jsonPayload = BuildSignalRMarketDataPayload(messageList);
+                string jsonPayload = BuildGlassSignalRPayload(containers);
                 await PostSignalRPayloadAsync(jsonPayload, endpoints).ConfigureAwait(false);
             }
 
             BulkInsertSignalRMessagesGlass(glassBatch);
         }
 
+        /// <summary>SignalR payload для INSTRS (MessageText как есть, без [{...}] обёртки на каждый тикер).</summary>
         private static string BuildSignalRMarketDataPayload(IEnumerable<string> messageJsonParts)
         {
             var parts = messageJsonParts.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
