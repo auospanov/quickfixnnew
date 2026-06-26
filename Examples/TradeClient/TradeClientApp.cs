@@ -39,7 +39,8 @@ namespace TradeClient
         private SessionSettings _settings;
         public static string connection = "";// "Data Source=WIN-DUS0A072PNF\\SQLEXPRESS;Initial Catalog=drivers_beSQL_new;Persist Security Info=True;User ID=platformAdm;Password=Admin$12345";
         public static List<instrsView> instrs = new List<instrsView>();
-        private static readonly object _glassContainerLock = new object();
+        private static readonly object _marketDataBatchLock = new object();
+        private static readonly SemaphoreSlim _quotesSignalRProcessing = new SemaphoreSlim(1, 1);
         /// <summary>Последний стакан по инструменту (ключ — idObject или symbol).</summary>
         private static readonly Dictionary<string, GlobalGlassContainer> glassContainerByInstrument = new(StringComparer.OrdinalIgnoreCase);
         private Timer _timer;
@@ -758,26 +759,85 @@ GO
             };
 
             string instrumentKey = instr.idObject > 0 ? instr.idObject.ToString() : symbol;
-            lock (_glassContainerLock)
+            glassContainerByInstrument[instrumentKey] = new GlobalGlassContainer
             {
-                glassContainerByInstrument[instrumentKey] = new GlobalGlassContainer
-                {
-                    ObjectId = instr.idObject.ToString(),
-                    glassContainers = new List<GlassContainerDto> { container }
-                };
-            }
+                ObjectId = instr.idObject.ToString(),
+                glassContainers = new List<GlassContainerDto> { container }
+            };
         }
 
-        private static List<GlobalGlassContainer> DrainLatestGlassContainers()
+        private static bool GlassEntryHasQty(object? qty)
         {
-            lock (_glassContainerLock)
-            {
-                if (glassContainerByInstrument.Count == 0)
-                    return new List<GlobalGlassContainer>();
+            if (qty == null)
+                return false;
+            if (qty is string s)
+                return !string.IsNullOrEmpty(s);
+            if (qty is long l)
+                return l > 0;
+            if (qty is int i)
+                return i > 0;
+            if (qty is decimal d)
+                return d > 0;
+            return false;
+        }
 
-                var batch = glassContainerByInstrument.Values.ToList();
-                glassContainerByInstrument.Clear();
-                return batch;
+        private static bool TryGetBestBidAskFromGlass(GlassContainerDto container, out decimal? bid, out decimal? ask)
+        {
+            bid = null;
+            ask = null;
+            if (container?.Data == null || container.Data.Count == 0)
+                return false;
+
+            foreach (var entry in container.Data)
+            {
+                if (GlassEntryHasQty(entry.BidQuantity))
+                {
+                    if (!bid.HasValue || entry.Price > bid.Value)
+                        bid = entry.Price;
+                }
+                if (GlassEntryHasQty(entry.AskQuantity))
+                {
+                    if (!ask.HasValue || entry.Price < ask.Value)
+                        ask = entry.Price;
+                }
+            }
+
+            return bid.HasValue || ask.HasValue;
+        }
+
+        private static void MergeBidAskFromGlassBatch(
+            IReadOnlyList<GlobalGlassContainer> glassBatch,
+            Dictionary<string, SignalRQuoteUpdateDto> bidAskByInstrument,
+            Dictionary<string, FixUpdateListItem> bidAskSnapshotByInstrument,
+            bool marketDbReady)
+        {
+            foreach (var group in glassBatch)
+            {
+                if (group.glassContainers == null || group.glassContainers.Count == 0)
+                    continue;
+
+                var container = group.glassContainers[0];
+                if (!TryGetBestBidAskFromGlass(container, out var bid, out var ask))
+                    continue;
+
+                string key = !string.IsNullOrEmpty(group.ObjectId) ? group.ObjectId : container.Ticker;
+                if (string.IsNullOrEmpty(key))
+                    continue;
+
+                var instr = ResolveInstrument(container.Ticker);
+                var pseudoQuote = new quotesSimple
+                {
+                    ticker = container.Ticker,
+                    bid = bid,
+                    ask = ask
+                };
+
+                var bidAskUpdate = BuildQuoteBidAskSignalRUpdate(pseudoQuote);
+                if (bidAskUpdate != null)
+                    bidAskByInstrument[key] = bidAskUpdate;
+
+                if (marketDbReady)
+                    bidAskSnapshotByInstrument[key] = BuildFixUpdateBidAskSnapshotItem(pseudoQuote, instr);
             }
         }
 
@@ -832,7 +892,7 @@ GO
 
         private static SignalRQuoteUpdateDto? BuildQuoteBidAskSignalRUpdate(quotesSimple q)
         {
-            if (q == null || string.IsNullOrWhiteSpace(q.ticker) || HasLastTrade(q))
+            if (q == null || string.IsNullOrWhiteSpace(q.ticker))
                 return null;
             if (!q.bid.HasValue && !q.ask.HasValue)
                 return null;
@@ -1005,7 +1065,42 @@ GO
             return JsonConvert.SerializeObject(new { Type = "sendMarketDataITS", Payload = encodedString });
         }
 
-        private async Task ProcessQuotesSignalRBranchAsync(List<quotesSimple> tempList)
+        private async Task ProcessMarketDataBatchAsync()
+        {
+            if (!await _quotesSignalRProcessing.WaitAsync(0).ConfigureAwait(false))
+                return;
+
+            try
+            {
+                List<quotesSimple> tempList;
+                List<GlobalGlassContainer> glassBatch;
+                lock (_marketDataBatchLock)
+                {
+                    tempList = quotesSimples.ToList();
+                    quotesSimples = new ConcurrentBag<quotesSimple>();
+                    glassBatch = glassContainerByInstrument.Count == 0
+                        ? new List<GlobalGlassContainer>()
+                        : glassContainerByInstrument.Values.ToList();
+                    glassContainerByInstrument.Clear();
+                }
+
+                tempList = tempList
+                    .Where(s => !string.IsNullOrEmpty(s.msgNum))
+                    .OrderBy(s => int.Parse(s.msgNum))
+                    .ToList();
+
+                if (tempList.Count == 0 && glassBatch.Count == 0)
+                    return;
+
+                await ProcessQuotesSignalRBranchAsync(tempList, glassBatch).ConfigureAwait(false);
+            }
+            finally
+            {
+                _quotesSignalRProcessing.Release();
+            }
+        }
+
+        private async Task ProcessQuotesSignalRBranchAsync(List<quotesSimple> tempList, List<GlobalGlassContainer> glassBatch)
         {
             bool marketDbReady = MarketDataDbContextFactory.IsInitialized;
             if (!marketDbReady)
@@ -1039,7 +1134,8 @@ GO
                     if (lastUpdate != null)
                         lastByInstrument[key] = lastUpdate;
                 }
-                else if (quote.bid.HasValue || quote.ask.HasValue)
+
+                if (quote.bid.HasValue || quote.ask.HasValue)
                 {
                     if (marketDbReady)
                     {
@@ -1051,6 +1147,8 @@ GO
                         bidAskByInstrument[key] = bidAskUpdate;
                 }
             }
+
+            MergeBidAskFromGlassBatch(glassBatch, bidAskByInstrument, bidAskSnapshotByInstrument, marketDbReady);
 
             var lastUpdates = lastByInstrument.Values.ToList();
             var bidAskUpdates = bidAskByInstrument.Values.ToList();
@@ -1080,6 +1178,16 @@ GO
 
             var endpoints = GetSignalREndpointsFromCfg();
 
+            try
+            {
+                ProcessGlassSignalRAsync(glassBatch, endpoints);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TimerTick] glass update error: {ex.Message}");
+                recToLog($"glass update error: {ex.Message}");
+            }
+
             if (endpoints.Count > 0)
             {
                 if (lastUpdates.Count > 0)
@@ -1107,17 +1215,6 @@ GO
                         recToLog($"INSTRS SignalR (bid/ask) error: {ex.Message}");
                     }
                 }
-            }
-
-            List<GlobalGlassContainer> glassBatch = DrainLatestGlassContainers();
-            try
-            {
-                ProcessGlassSignalRAsync(glassBatch, endpoints);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[TimerTick] glass update error: {ex.Message}");
-                recToLog($"glass update error: {ex.Message}");
             }
 
             if (!marketDbReady || (lastUpdates.Count == 0 && bidAskUpdates.Count == 0))
@@ -1159,30 +1256,23 @@ GO
         {
             if (Program.GetValueByKey(Program.cfg, "IsQuotesRequest") == "1")
             {
-                List<quotesSimple> tempList = new List<quotesSimple>();
-                lock (quotesSimples)
-                {
-                    tempList = quotesSimples.ToList();
-                    quotesSimples = new ConcurrentBag<quotesSimple>();
-                }
-                tempList = tempList
-                    .Where(s => !string.IsNullOrEmpty(s.msgNum))
-                    .OrderBy(s => int.Parse(s.msgNum))
-                    .ToList();
-
                 if (IsCfgFlagEnabled("SendQuotesToSignalR"))
                 {
-                    bool hasGlass;
-                    lock (_glassContainerLock)
-                        hasGlass = glassContainerByInstrument.Count > 0;
-
-                    // ветка 2: snapshot + INSTRS SignalR + GLASS + signalRMessages
-                    if (tempList.Count > 0 || hasGlass)
-                        _ = Task.Run(() => ProcessQuotesSignalRBranchAsync(tempList));
+                    _ = ProcessMarketDataBatchAsync();
                 }
                 else
                 {
-                    // ветка 1: запись в БД (как было)
+                    List<quotesSimple> tempList;
+                    lock (_marketDataBatchLock)
+                    {
+                        tempList = quotesSimples.ToList();
+                        quotesSimples = new ConcurrentBag<quotesSimple>();
+                    }
+                    tempList = tempList
+                        .Where(s => !string.IsNullOrEmpty(s.msgNum))
+                        .OrderBy(s => int.Parse(s.msgNum))
+                        .ToList();
+
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                     {
                         wrapper.Context.quotesSimple.AddRange(tempList);
@@ -4461,8 +4551,11 @@ GO
                     out var bidLevels,
                     out var askLevels);
 
-                quotesSimples.Add(quote);
-                TryEnqueueGlassFromMdEntries(symbol, bidLevels, askLevels);
+                lock (_marketDataBatchLock)
+                {
+                    quotesSimples.Add(quote);
+                    TryEnqueueGlassFromMdEntries(symbol, bidLevels, askLevels);
+                }
             }
              }
             catch(Exception e) {
@@ -4547,8 +4640,11 @@ GO
                     out var bidLevels,
                     out var askLevels);
 
-                quotesSimples.Add(quote);
-                TryEnqueueGlassFromMdEntries(symbol, bidLevels, askLevels);
+                lock (_marketDataBatchLock)
+                {
+                    quotesSimples.Add(quote);
+                    TryEnqueueGlassFromMdEntries(symbol, bidLevels, askLevels);
+                }
             }
              }
             catch(Exception e) {
