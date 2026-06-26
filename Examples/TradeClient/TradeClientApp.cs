@@ -39,6 +39,8 @@ namespace TradeClient
         private SessionSettings _settings;
         public static string connection = "";// "Data Source=WIN-DUS0A072PNF\\SQLEXPRESS;Initial Catalog=drivers_beSQL_new;Persist Security Info=True;User ID=platformAdm;Password=Admin$12345";
         public static List<instrsView> instrs = new List<instrsView>();
+        private static readonly object _glassContainerLock = new object();
+        public static List<GlobalGlassContainer> glassContainer = new List<GlobalGlassContainer>();
         private Timer _timer;
         private Timer _timerGetOrdersForSend;
         private readonly int _timerBatchCollectMilliseconds = 10_000; // например, 10 секунд
@@ -556,10 +558,228 @@ GO
             return value.Value.ToString("# ##0.######", CultureInfo.InvariantCulture).Replace('.', ',');
         }
 
-        private sealed class SignalRQuoteUpdateDto
+        private static string GetMarketSourceName()
         {
-            public string IdObject { get; set; } = "";
-            public string MessageText { get; set; } = "";
+            string sourceName = Program.EXCH_CODE ?? Program.ADAPTER ?? "FIX";
+            return sourceName.Equals("EXANTE", StringComparison.OrdinalIgnoreCase) ? "INTL" : sourceName;
+        }
+
+        private static instrsView? ResolveInstrument(string symbol)
+        {
+            if (string.IsNullOrWhiteSpace(symbol))
+                return null;
+            return instrs.FirstOrDefault(i =>
+                string.Equals(i.symbol, symbol, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string BuildFixDataUpdateJson(
+            string sourceName,
+            string idObject,
+            string codeMubasher,
+            decimal? bid,
+            decimal? ask,
+            decimal? lastPrice)
+        {
+            var payload = new Dictionary<string, object>
+            {
+                ["typeQuery"] = "UPDATE",
+                ["objectType"] = "INSTRS",
+                ["sourceName"] = sourceName,
+                ["idObject"] = idObject,
+                ["codeMubasher"] = codeMubasher,
+                ["updateAction"] = "MSR"
+            };
+            if (bid.HasValue)
+                payload["bid"] = bid.Value.ToString(CultureInfo.InvariantCulture);
+            if (ask.HasValue)
+                payload["ask"] = ask.Value.ToString(CultureInfo.InvariantCulture);
+            if (lastPrice.HasValue && lastPrice.Value != 0)
+                payload["lastPrice"] = lastPrice.Value.ToString(CultureInfo.InvariantCulture);
+            return JsonConvert.SerializeObject(payload);
+        }
+
+        private static FixUpdateListItem BuildFixUpdateSnapshotItem(quotesSimple q, instrsView? instr, decimal pctChg1D)
+        {
+            string idObject = instr != null && instr.idObject > 0 ? instr.idObject.ToString() : "0";
+            return new FixUpdateListItem
+            {
+                idObject = idObject,
+                bid = q.bid,
+                ask = q.ask,
+                last = q.lastTrade,
+                changepct1d = pctChg1D
+            };
+        }
+
+        private static decimal CalcPctChg1D(decimal? lastTrade, instrsView? instr)
+        {
+            // lastPrevDay в FIX-ветке пока не загружается — оставляем 0, как fallback в MulticastChat
+            return 0;
+        }
+
+        private static void FixDataUpdateSnapshot(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json) || json == "[]")
+                return;
+
+            var sharedConn = MarketDataDbContextFactory.GetSharedConnection();
+            if (sharedConn == null || sharedConn.State != ConnectionState.Open)
+                return;
+
+            lock (sharedConn)
+            {
+                using (var cmd = new SqlCommand("dbo.fixDataUpdateSnapshot", sharedConn))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.CommandTimeout = 30;
+                    cmd.Parameters.Add(new SqlParameter("@messageText", SqlDbType.NVarChar, -1) { Value = json });
+                    var pResCode = new SqlParameter("@resCode", SqlDbType.VarChar, 10) { Direction = ParameterDirection.InputOutput, Value = "-1" };
+                    var pResult = new SqlParameter("@resultString", SqlDbType.NVarChar, -1) { Direction = ParameterDirection.Output };
+                    cmd.Parameters.Add(pResCode);
+                    cmd.Parameters.Add(pResult);
+                    cmd.Parameters.Add(new SqlParameter("@messageType", SqlDbType.VarChar, 50) { Value = "Normal" });
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        private sealed class MdEntryLevel
+        {
+            public char EntryType { get; set; }
+            public decimal Price { get; set; }
+            public decimal Size { get; set; }
+        }
+
+        private static quotesSimple BuildQuoteFromMdEntries(
+            string symbol,
+            string msgNum,
+            string sendingTime,
+            IReadOnlyList<MdEntryLevel> entries,
+            byte isReal,
+            out List<MdEntryLevel> bidLevels,
+            out List<MdEntryLevel> askLevels)
+        {
+            bidLevels = new List<MdEntryLevel>();
+            askLevels = new List<MdEntryLevel>();
+
+            var quote = new quotesSimple
+            {
+                isReal = isReal,
+                exchangeCode = Program.EXCH_CODE,
+                ticker = symbol,
+                msgNum = msgNum,
+                sendingTime = sendingTime
+            };
+
+            foreach (var entry in entries)
+            {
+                if (entry.EntryType == '0')
+                {
+                    bidLevels.Add(entry);
+                    if (!quote.bid.HasValue || entry.Price > quote.bid.Value)
+                    {
+                        quote.bid = entry.Price;
+                        quote.bidQuantity = entry.Size;
+                    }
+                }
+                else if (entry.EntryType == '1')
+                {
+                    askLevels.Add(entry);
+                    if (!quote.ask.HasValue || entry.Price < quote.ask.Value)
+                    {
+                        quote.ask = entry.Price;
+                        quote.askQuantity = entry.Size;
+                    }
+                }
+                else if (entry.EntryType == '2')
+                {
+                    quote.lastTrade = entry.Price;
+                }
+            }
+
+            return quote;
+        }
+
+        private static string FormatGlassQty(decimal qty)
+        {
+            string formatted = qty.ToString("# ##0.######", CultureInfo.InvariantCulture).Trim();
+            return formatted == "0" ? "-" : formatted;
+        }
+
+        private static void TryEnqueueGlassFromMdEntries(string symbol, List<MdEntryLevel> bidLevels, List<MdEntryLevel> askLevels)
+        {
+            if (!IsCfgFlagEnabled("SendQuotesToSignalR"))
+                return;
+            if (bidLevels.Count == 0 && askLevels.Count == 0)
+                return;
+
+            var instr = ResolveInstrument(symbol);
+            if (instr == null || instr.idObject <= 0)
+                return;
+
+            var priceMap = new SortedDictionary<decimal, (decimal bidQty, decimal askQty)>(Comparer<decimal>.Create((a, b) => b.CompareTo(a)));
+
+            foreach (var bid in bidLevels)
+            {
+                if (!priceMap.TryGetValue(bid.Price, out var level))
+                    level = (0, 0);
+                level.bidQty += bid.Size;
+                priceMap[bid.Price] = level;
+            }
+            foreach (var ask in askLevels)
+            {
+                if (!priceMap.TryGetValue(ask.Price, out var level))
+                    level = (0, 0);
+                level.askQty += ask.Size;
+                priceMap[ask.Price] = level;
+            }
+
+            decimal? maxBid = bidLevels.Count > 0 ? bidLevels.Max(x => x.Price) : null;
+            decimal? minAsk = askLevels.Count > 0 ? askLevels.Min(x => x.Price) : null;
+
+            IEnumerable<KeyValuePair<decimal, (decimal bidQty, decimal askQty)>> selected = priceMap;
+            if (maxBid.HasValue || minAsk.HasValue)
+            {
+                selected = priceMap.Where(p =>
+                    (maxBid.HasValue && p.Key <= maxBid.Value && p.Value.bidQty > 0) ||
+                    (minAsk.HasValue && p.Key >= minAsk.Value && p.Value.askQty > 0));
+            }
+
+            var glassEntries = selected
+                .Take(20)
+                .Select(p => new GlassEntryDto
+                {
+                    Price = p.Key,
+                    PriceStr = p.Key.ToString("# ##0.######", CultureInfo.InvariantCulture),
+                    BidQuantity = FormatGlassQty(p.Value.bidQty),
+                    AskQuantity = FormatGlassQty(p.Value.askQty),
+                    Best = (maxBid.HasValue && p.Key == maxBid.Value) || (minAsk.HasValue && p.Key == minAsk.Value) ? "1" : ""
+                })
+                .ToList();
+
+            if (glassEntries.Count == 0)
+                return;
+
+            string sourceName = GetMarketSourceName();
+            string serializedGlass = JsonConvert.SerializeObject(glassEntries);
+            var container = new GlassContainerDto
+            {
+                ObjectType = "GLASS",
+                SourceName = sourceName,
+                Ticker = instr.tickerVisible ?? symbol,
+                ShortName = instr.shortName ?? symbol,
+                Board = "",
+                Data = "\"" + serializedGlass + "\""
+            };
+
+            lock (_glassContainerLock)
+            {
+                glassContainer.Add(new GlobalGlassContainer
+                {
+                    ObjectId = instr.idObject.ToString(),
+                    glassContainers = new List<GlassContainerDto> { container }
+                });
+            }
         }
 
         /// <summary>Формирование MessageText для SignalR (принцип MulticastChat / INSTRS).</summary>
@@ -569,18 +789,26 @@ GO
             if (q == null || string.IsNullOrWhiteSpace(q.ticker))
                 return messages;
 
-            string sourceName = Program.EXCH_CODE ?? Program.ADAPTER ?? "FIX";
-            sourceName = sourceName.ToUpper() == "EXANTE" ? "INTL":sourceName;
+            string sourceName = GetMarketSourceName();
             string ticker = q.ticker;
             string tickerVisible = q.ticker;
             string shortName = q.ticker;
             string idObject = "0";
-            var instr = instrs.FirstOrDefault(i =>
-                string.Equals(i.symbol, ticker, StringComparison.OrdinalIgnoreCase));
-            if (instr != null && !string.IsNullOrWhiteSpace(instr.idObject.ToString()))
-                idObject = instr.idObject.ToString();
-            tickerVisible = instr.tickerVisible;
-            ticker = instr.shortName;
+            string codeMubasher = q.ticker;
+            var instr = ResolveInstrument(ticker);
+            if (instr != null)
+            {
+                if (instr.idObject > 0)
+                    idObject = instr.idObject.ToString();
+                tickerVisible = instr.tickerVisible ?? q.ticker;
+                shortName = instr.shortName ?? q.ticker;
+                codeMubasher = instr.codeMubasher ?? q.ticker;
+            }
+
+            decimal pctChg1D = CalcPctChg1D(q.lastTrade, instr);
+            string pctChg1DStr = pctChg1D.ToString("# ##0.##", CultureInfo.InvariantCulture).Trim().Replace("- ", "-");
+            string pctChg1DColor = pctChg1D > 0 ? "#008000" : pctChg1D < 0 ? "#FF0000" : "#808080";
+
             if (q.bid.HasValue || q.ask.HasValue)
             {
                 string bid = (q.bid ?? 0).ToString(CultureInfo.InvariantCulture);
@@ -601,7 +829,8 @@ GO
                         .Replace("{bid}", bid)
                         .Replace("{bidStr}", bidStr)
                         .Replace("{ask}", ask)
-                        .Replace("{askStr}", askStr)
+                        .Replace("{askStr}", askStr),
+                    ProcedureJson = BuildFixDataUpdateJson(sourceName, idObject, codeMubasher, q.bid, q.ask, null)
                 });
             }
 
@@ -622,9 +851,10 @@ GO
                         .Replace("{IdObject}", idObject)
                         .Replace("{last1}", last1)
                         .Replace("{last1Str}", last1Str)
-                        .Replace("{pctChg1D}", "0")
-                        .Replace("{pctChg1DStr}", "0%")
-                        .Replace("{pctChg1DColor}", "#808080")
+                        .Replace("{pctChg1D}", pctChg1D.ToString(CultureInfo.InvariantCulture))
+                        .Replace("{pctChg1DStr}", pctChg1DStr + "%")
+                        .Replace("{pctChg1DColor}", pctChg1DColor),
+                    ProcedureJson = BuildFixDataUpdateJson(sourceName, idObject, codeMubasher, null, null, q.lastTrade)
                 });
             }
 
@@ -668,15 +898,80 @@ GO
             }
         }
 
-        /// <summary>Вызов dbo.fixDataUpdateNew для каждого сообщения котировки.</summary>
+        /// <summary>Вызов dbo.fixDataUpdateNew для каждого сообщения котировки (контракт typeQuery/UPDATE).</summary>
         private static void FixDataUpdateQuoteMessages(IEnumerable<SignalRQuoteUpdateDto> updates)
         {
             foreach (var update in updates)
             {
-                if (string.IsNullOrWhiteSpace(update.MessageText))
+                if (string.IsNullOrWhiteSpace(update.ProcedureJson))
                     continue;
-                FixGetUpdateDataNewMarketData(update.MessageText);
+                FixGetUpdateDataNewMarketData(update.ProcedureJson);
             }
+        }
+
+        private static void BulkInsertSignalRMessagesGlass(IReadOnlyList<GlobalGlassContainer> groups)
+        {
+            if (groups == null || groups.Count == 0)
+                return;
+
+            var table = new DataTable();
+            table.Columns.Add("idObject", typeof(string));
+            table.Columns.Add("objectType", typeof(string));
+            table.Columns.Add("messageText", typeof(string));
+            table.Columns.Add("isSended", typeof(int));
+            table.Columns.Add("proccessedDate", typeof(DateTime));
+
+            foreach (var group in groups)
+            {
+                if (group.glassContainers == null || group.glassContainers.Count == 0)
+                    continue;
+                string messageText = JsonConvert.SerializeObject(group.glassContainers[0]);
+                table.Rows.Add(group.ObjectId ?? "", "GLASS", messageText, 1, DateTime.Now);
+            }
+            if (table.Rows.Count == 0)
+                return;
+
+            var sharedConn = MarketDataDbContextFactory.GetSharedConnection();
+            if (sharedConn == null || sharedConn.State != ConnectionState.Open)
+                throw new InvalidOperationException("MarketDataDbContextFactory не инициализирована (ConnectionStringMarketData).");
+
+            lock (sharedConn)
+            {
+                using (var bulk = new SqlBulkCopy(sharedConn))
+                {
+                    bulk.DestinationTableName = "dbo.signalRMessages";
+                    bulk.ColumnMappings.Add("idObject", "idObject");
+                    bulk.ColumnMappings.Add("objectType", "objectType");
+                    bulk.ColumnMappings.Add("messageText", "messageText");
+                    bulk.ColumnMappings.Add("isSended", "isSended");
+                    bulk.ColumnMappings.Add("proccessedDate", "proccessedDate");
+                    bulk.WriteToServer(table);
+                }
+            }
+        }
+
+        private async Task ProcessGlassSignalRAsync(List<GlobalGlassContainer> glassBatch, List<string> endpoints)
+        {
+            if (glassBatch.Count == 0)
+                return;
+
+            var messageList = new List<string>();
+            foreach (var group in glassBatch)
+            {
+                if (group.glassContainers == null || group.glassContainers.Count == 0)
+                    continue;
+                messageList.Add(JsonConvert.SerializeObject(group.glassContainers[0]));
+            }
+            if (messageList.Count == 0)
+                return;
+
+            if (endpoints.Count > 0)
+            {
+                string jsonPayload = BuildSignalRMarketDataPayload(messageList);
+                await PostSignalRPayloadAsync(jsonPayload, endpoints).ConfigureAwait(false);
+            }
+
+            BulkInsertSignalRMessagesGlass(glassBatch);
         }
 
         private static string BuildSignalRMarketDataPayload(IEnumerable<string> messageJsonParts)
@@ -689,25 +984,62 @@ GO
 
         private async Task ProcessQuotesSignalRBranchAsync(List<quotesSimple> tempList)
         {
-            var updates = new List<SignalRQuoteUpdateDto>();
-            foreach (var quote in tempList)
-                updates.AddRange(BuildQuoteSignalRUpdates(quote));
-            if (updates.Count == 0)
-                return;
-
-            var endpoints = GetSignalREndpointsFromCfg();
-            if (endpoints.Count > 0)
-            {
-                var messageTexts = updates.Select(u => u.MessageText).ToList();
-                string jsonPayload = BuildSignalRMarketDataPayload(messageTexts);
-                await PostSignalRPayloadAsync(jsonPayload, endpoints).ConfigureAwait(false);
-            }
-
             if (!MarketDataDbContextFactory.IsInitialized)
             {
                 recToLog("quotes DB update skipped: ConnectionStringMarketData не задан");
                 return;
             }
+
+            var updates = new List<SignalRQuoteUpdateDto>();
+            var snapshotBatch = new List<FixUpdateListItem>();
+            foreach (var quote in tempList)
+            {
+                var instr = ResolveInstrument(quote.ticker);
+                decimal pctChg1D = CalcPctChg1D(quote.lastTrade, instr);
+                snapshotBatch.Add(BuildFixUpdateSnapshotItem(quote, instr, pctChg1D));
+                updates.AddRange(BuildQuoteSignalRUpdates(quote));
+            }
+
+            try
+            {
+                FixDataUpdateSnapshot(JsonConvert.SerializeObject(snapshotBatch));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TimerTick] fixDataUpdateSnapshot error: {ex.Message}");
+                recToLog($"fixDataUpdateSnapshot error: {ex.Message}");
+            }
+
+            var endpoints = GetSignalREndpointsFromCfg();
+
+            if (updates.Count > 0 && endpoints.Count > 0)
+            {
+                var messageTexts = updates.Select(u => u.MessageText).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+                if (messageTexts.Count > 0)
+                {
+                    string jsonPayload = BuildSignalRMarketDataPayload(messageTexts);
+                    await PostSignalRPayloadAsync(jsonPayload, endpoints).ConfigureAwait(false);
+                }
+            }
+
+            List<GlobalGlassContainer> glassBatch;
+            lock (_glassContainerLock)
+            {
+                glassBatch = glassContainer.ToList();
+                glassContainer.Clear();
+            }
+            try
+            {
+                await ProcessGlassSignalRAsync(glassBatch, endpoints).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TimerTick] glass update error: {ex.Message}");
+                recToLog($"glass update error: {ex.Message}");
+            }
+
+            if (updates.Count == 0)
+                return;
 
             try
             {
@@ -758,8 +1090,12 @@ GO
 
                 if (IsCfgFlagEnabled("SendQuotesToSignalR"))
                 {
-                    // ветка 2: пачка → SignalR + dbo.signalRMessages + fixDataUpdateNew
-                    if (tempList.Count > 0)
+                    bool hasGlass;
+                    lock (_glassContainerLock)
+                        hasGlass = glassContainer.Count > 0;
+
+                    // ветка 2: snapshot + INSTRS SignalR + GLASS + signalRMessages + fixDataUpdateNew
+                    if (tempList.Count > 0 || hasGlass)
                         _ = Task.Run(() => ProcessQuotesSignalRBranchAsync(tempList));
                 }
                 else
@@ -3975,8 +4311,8 @@ GO
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                     {
                         var db = wrapper.Context;
-                    quotesSimple quote = new quotesSimple();
                 string symbol = null;
+                var mdEntries = new List<MdEntryLevel>();
 
                 for (int i = 1; i <= m.NoMDEntries.getValue(); i++)
                 {
@@ -3987,7 +4323,6 @@ GO
                     decimal? price = null;
                     decimal? size = null;
 
-                    // Получаем цену
                     if (group.IsSetField(QuickFix.Fields.MDEntryPx.TAG))
                     {
                         var mdEntryPx = new QuickFix.Fields.MDEntryPx();
@@ -3995,7 +4330,6 @@ GO
                         price = mdEntryPx.getValue();
                     }
 
-                    // Получаем количество
                     if (group.IsSetField(QuickFix.Fields.MDEntrySize.TAG))
                     {
                         var mdEntrySize = new QuickFix.Fields.MDEntrySize();
@@ -4003,7 +4337,6 @@ GO
                         size = mdEntrySize.getValue();
                     }
 
-                    // Получаем символ
                     if (group.IsSetField(QuickFix.Fields.Symbol.TAG))
                     {
                         var symbolField = new QuickFix.Fields.Symbol();
@@ -4012,51 +4345,37 @@ GO
                     }
 
                     if (!price.HasValue)
-                        continue; // Если нет цены, пропускаем запись
+                        continue;
 
-                    switch (mdEntryType)
+                    if (mdEntryType.Length == 1)
                     {
-                        case "0": // Bid
-                            quote.bid = price.Value;
-                            quote.bidQuantity = size ?? 0;
-                            break;
-
-                        case "1": // Offer (Ask)
-                            quote.ask = price.Value;
-                            quote.askQuantity = size ?? 0;
-                            break;
-
-                        case "2": // Last Price (Trade)
-                            quote.lastTrade = price.Value;
-                            //quote.lastTrade = size ?? 0;
-                            break;
-
-                        //case "4": // Opening price
-                        //    quote.openPrice = price.Value;
-                        //    break;
-
-                        //case "5": // Closing price
-                        //    quote.closePrice = price.Value;
-                        //    break;
-
-                        //case "B": // Trade volume отдельно
-                        //    quote.totalVolume = size ?? 0;
-                        //    break;
-
-                        default:
-                            if(isDebug) Console.WriteLine($"Unknown MDEntryType: {mdEntryType}");
-                            break;
+                        mdEntries.Add(new MdEntryLevel
+                        {
+                            EntryType = mdEntryType[0],
+                            Price = price.Value,
+                            Size = size ?? 0
+                        });
+                    }
+                    else if (isDebug)
+                    {
+                        Console.WriteLine($"Unknown MDEntryType: {mdEntryType}");
                     }
                 }
 
-                quote.isReal = isDebug ? (byte)0 : (byte)1;
-                quote.exchangeCode = Program.EXCH_CODE; //"Exante";
-                quote.ticker = symbol;
-                quote.msgNum = m.Header.GetString(34);
-                quote.sendingTime = m.Header.GetString(52);
-                //db.quotesSimple.Add(quote);
-                //db.SaveChanges();
+                if (string.IsNullOrEmpty(symbol))
+                    return;
+
+                var quote = BuildQuoteFromMdEntries(
+                    symbol,
+                    m.Header.GetString(34),
+                    m.Header.GetString(52),
+                    mdEntries,
+                    isDebug ? (byte)0 : (byte)1,
+                    out var bidLevels,
+                    out var askLevels);
+
                 quotesSimples.Add(quote);
+                TryEnqueueGlassFromMdEntries(symbol, bidLevels, askLevels);
             }
              }
             catch(Exception e) {
@@ -4076,7 +4395,6 @@ GO
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                     {
                         var db = wrapper.Context;
-                    // Получаем символ инструмента
                 string symbol = null;
                 if (m.IsSetField(QuickFix.Fields.Symbol.TAG))
                 {
@@ -4091,16 +4409,7 @@ GO
                     return;
                 }
 
-                var quote = new quotesSimple
-                {
-                    isReal = isDebug ? (byte)0 : (byte)1,
-                    exchangeCode = Program.EXCH_CODE, //"Exante",
-                    ticker = symbol,
-                    msgNum = m.Header.GetString(34),
-                    sendingTime = m.Header.GetString(52)
-                    //INPDATE = msg.Header.
-                };
-
+                var mdEntries = new List<MdEntryLevel>();
                 for (int i = 1; i <= m.NoMDEntries.getValue(); i++)
                 {
                     var group = new QuickFix.FIX44.MarketDataSnapshotFullRefresh.NoMDEntriesGroup();
@@ -4127,31 +4436,32 @@ GO
                     if (!price.HasValue)
                         continue;
 
-                    switch (mdEntryType)
+                    if (mdEntryType.Length == 1)
                     {
-                        case "0": // Bid
-                            quote.bid = price.Value;
-                            quote.bidQuantity = size ?? 0;
-                            break;
-
-                        case "1": // Ask
-                            quote.ask = price.Value;
-                            quote.askQuantity = size ?? 0;
-                            break;
-
-                        case "2": // Last
-                            quote.lastTrade = price.Value;
-                            //quote.askQuantity = size ?? 0;
-                            break;
-                        default:
-                            if(isDebug) Console.WriteLine($"Skipping unknown MDEntryType: {mdEntryType}");
-                            break;
+                        mdEntries.Add(new MdEntryLevel
+                        {
+                            EntryType = mdEntryType[0],
+                            Price = price.Value,
+                            Size = size ?? 0
+                        });
+                    }
+                    else if (isDebug)
+                    {
+                        Console.WriteLine($"Skipping unknown MDEntryType: {mdEntryType}");
                     }
                 }
-                
-                //db.quotesSimple.Add(quote);
-                //db.SaveChanges();
+
+                var quote = BuildQuoteFromMdEntries(
+                    symbol,
+                    m.Header.GetString(34),
+                    m.Header.GetString(52),
+                    mdEntries,
+                    isDebug ? (byte)0 : (byte)1,
+                    out var bidLevels,
+                    out var askLevels);
+
                 quotesSimples.Add(quote);
+                TryEnqueueGlassFromMdEntries(symbol, bidLevels, askLevels);
             }
              }
             catch(Exception e) {
