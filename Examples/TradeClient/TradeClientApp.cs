@@ -574,6 +574,19 @@ GO
             return tickerFallback ?? "";
         }
 
+        /// <summary>Последняя котировка по каждому тикеру в пачке (не глобальный порядок msgNum).</summary>
+        private static List<quotesSimple> GetLatestQuotePerTicker(IEnumerable<quotesSimple> quotes)
+        {
+            return quotes
+                .Where(q => q != null && !string.IsNullOrWhiteSpace(q.ticker))
+                .GroupBy(q => q.ticker!, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g
+                    .OrderByDescending(q => int.TryParse(q.msgNum, out int seq) ? seq : 0)
+                    .ThenByDescending(q => q.sendingTime ?? "", StringComparer.Ordinal)
+                    .First())
+                .ToList();
+        }
+
         private static void FixDataUpdateSnapshot(string json)
         {
             if (string.IsNullOrWhiteSpace(json) || json == "[]")
@@ -817,7 +830,7 @@ GO
 
         private static SignalRQuoteUpdateDto? BuildQuoteBidAskSignalRUpdate(quotesSimple q)
         {
-            if (q == null || string.IsNullOrWhiteSpace(q.ticker) || HasLastTrade(q))
+            if (q == null || string.IsNullOrWhiteSpace(q.ticker))
                 return null;
             if (!q.bid.HasValue && !q.ask.HasValue)
                 return null;
@@ -915,24 +928,20 @@ GO
             }
         }
 
-        private void PersistInstrsSignalRMessages(
-            IReadOnlyList<SignalRQuoteUpdateDto> lastUpdates,
-            IReadOnlyList<SignalRQuoteUpdateDto> bidAskUpdates)
+        private void PersistInstrsSignalRMessages(IReadOnlyList<SignalRQuoteUpdateDto> allInstrsUpdates)
         {
             if (!MarketDataDbContextFactory.IsInitialized)
             {
                 recToLog("signalRMessages INSTRS: пропуск — ConnectionStringMarketData не задан");
                 return;
             }
+            if (allInstrsUpdates == null || allInstrsUpdates.Count == 0)
+                return;
 
             try
             {
-                BulkInsertSignalRMessagesInstrs(lastUpdates);
-                BulkInsertSignalRMessagesInstrs(bidAskUpdates);
-                int lastCnt = lastUpdates?.Count ?? 0;
-                int bidAskCnt = bidAskUpdates?.Count ?? 0;
-                if (lastCnt > 0 || bidAskCnt > 0)
-                    recToLog($"signalRMessages INSTRS записано: last={lastCnt}, bid/ask={bidAskCnt}");
+                BulkInsertSignalRMessagesInstrs(allInstrsUpdates);
+                recToLog($"signalRMessages INSTRS записано: {allInstrsUpdates.Count}");
             }
             catch (Exception ex)
             {
@@ -1034,11 +1043,6 @@ GO
                     glassContainerByInstrument.Clear();
                 }
 
-                tempList = tempList
-                    .Where(s => !string.IsNullOrEmpty(s.msgNum))
-                    .OrderBy(s => int.Parse(s.msgNum))
-                    .ToList();
-
                 if (tempList.Count == 0 && glassBatch.Count == 0)
                     return;
 
@@ -1066,12 +1070,8 @@ GO
             var lastSnapshotByInstrument = new Dictionary<string, FixUpdateListItem>(StringComparer.OrdinalIgnoreCase);
             var bidAskSnapshotByInstrument = new Dictionary<string, FixUpdateListItem>(StringComparer.OrdinalIgnoreCase);
 
-            // Срез quotesSimple: по msgNum последнее значение на инструмент (last отдельно, bid/ask отдельно)
-            foreach (var quote in tempList)
+            foreach (var quote in GetLatestQuotePerTicker(tempList))
             {
-                if (quote == null || string.IsNullOrWhiteSpace(quote.ticker))
-                    continue;
-
                 var instr = ResolveInstrument(quote.ticker);
                 string idObject = instr != null && instr.idObject > 0 ? instr.idObject.ToString() : "0";
                 string key = GetInstrumentKey(idObject, quote.ticker);
@@ -1090,7 +1090,8 @@ GO
                     if (lastUpdate != null)
                         lastByInstrument[key] = lastUpdate;
                 }
-                else if (quote.bid.HasValue || quote.ask.HasValue)
+
+                if (quote.bid.HasValue || quote.ask.HasValue)
                 {
                     if (marketDbReady)
                     {
@@ -1105,6 +1106,10 @@ GO
 
             var lastUpdates = lastByInstrument.Values.ToList();
             var bidAskUpdates = bidAskByInstrument.Values.ToList();
+            var allSnapshotItems = lastSnapshotByInstrument.Values
+                .Concat(bidAskSnapshotByInstrument.Values)
+                .ToList();
+            var allInstrsUpdates = lastUpdates.Concat(bidAskUpdates).ToList();
 
             try
             {
@@ -1112,23 +1117,15 @@ GO
                 {
                     try
                     {
-                        FixDataUpdateSnapshot(JsonConvert.SerializeObject(lastSnapshotByInstrument.Values.ToList()));
+                        FixDataUpdateSnapshot(JsonConvert.SerializeObject(allSnapshotItems));
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[TimerTick] fixDataUpdateSnapshot (last) error: {ex.Message}");
-                        recToLog($"fixDataUpdateSnapshot (last) error: {ex.Message}");
+                        Console.WriteLine($"[TimerTick] fixDataUpdateSnapshot error: {ex.Message}");
+                        recToLog($"fixDataUpdateSnapshot error: {ex.Message}");
                     }
 
-                    try
-                    {
-                        FixDataUpdateSnapshot(JsonConvert.SerializeObject(bidAskSnapshotByInstrument.Values.ToList()));
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[TimerTick] fixDataUpdateSnapshot (bid/ask) error: {ex.Message}");
-                        recToLog($"fixDataUpdateSnapshot (bid/ask) error: {ex.Message}");
-                    }
+                    PersistInstrsSignalRMessages(allInstrsUpdates);
                 }
 
                 var endpoints = GetSignalREndpointsFromCfg();
@@ -1143,17 +1140,13 @@ GO
                     recToLog($"glass update error: {ex.Message}");
                 }
 
-                if (endpoints.Count > 0)
-                {
-                    if (lastUpdates.Count > 0)
-                        _ = SendInstrsSignalRBatchAsync(lastUpdates, endpoints);
-                    if (bidAskUpdates.Count > 0)
-                        _ = SendInstrsSignalRBatchAsync(bidAskUpdates, endpoints);
-                }
+                if (endpoints.Count > 0 && allInstrsUpdates.Count > 0)
+                    _ = SendInstrsSignalRBatchAsync(allInstrsUpdates, endpoints);
             }
-            finally
+            catch (Exception ex)
             {
-                PersistInstrsSignalRMessages(lastUpdates, bidAskUpdates);
+                Console.WriteLine($"[TimerTick] INSTRS branch error: {ex.Message}");
+                recToLog($"INSTRS branch error: {ex.Message}");
             }
         }
 
