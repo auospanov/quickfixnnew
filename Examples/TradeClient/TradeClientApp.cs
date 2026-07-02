@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
 using QuickFix;
 using QuickFix.Fields;
@@ -738,9 +739,10 @@ GO
         }
 
         /// <summary>SignalR payload только для GLASS: json-массив [{...}] → Base64.</summary>
-        private static string BuildGlassSignalRPayload(IReadOnlyList<GlassContainerDto> containers)
+        private static string BuildGlassSignalRPayload(IReadOnlyList<GlassContainerDto> containers, ref string atiContent)
         {
             string jsonArray = JsonConvert.SerializeObject(containers);
+            atiContent = jsonArray;
             string encodedString = Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonArray));
             return JsonConvert.SerializeObject(new { Type = "sendMarketDataITS", Payload = encodedString });
         }
@@ -864,9 +866,9 @@ GO
             string last1 = q.lastTrade!.Value.ToString(CultureInfo.InvariantCulture);
             string last1Str = FormatQuotePriceStr(q.lastTrade);
 
+            //const string lastTemplate = "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"last1\\\":{last1},\\\"last1Str\\\":\\\"{last1Str}\\\",\\\"pctChg1D\\\":{pctChg1D},\\\"pctChg1DStr\\\":\\\"{pctChg1DStr}\\\",\\\"pctChg1DColor\\\":\\\"{pctChg1DColor}\\\"}]\\\"\"}";
             const string lastTemplate =
-                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"last1\\\":{last1},\\\"last1Str\\\":\\\"{last1Str}\\\",\\\"pctChg1D\\\":{pctChg1D},\\\"pctChg1DStr\\\":\\\"{pctChg1DStr}\\\",\\\"pctChg1DColor\\\":\\\"{pctChg1DColor}\\\"}]\\\"\"}";
-
+    "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":[{\"instrument_id\":{IdObject},\"ticker\":\"{ticker}\",\"shortName\":\"{shortName}\",\"sourceName\":\"{sourceName}\",\"tickerVisible\":\"{tickerVisible}\",\"last1\":{last1},\"last1Str\":\"{last1Str}\",\"pctChg1D\":{pctChg1D},\"pctChg1DStr\":\"{pctChg1DStr}\",\"pctChg1DColor\":\"{pctChg1DColor}\"}]}";
             return new SignalRQuoteUpdateDto
             {
                 IdObject = idObject,
@@ -910,9 +912,9 @@ GO
             string ask = (q.ask ?? 0).ToString(CultureInfo.InvariantCulture);
             string bidStr = FormatQuotePriceStr(q.bid);
             string askStr = FormatQuotePriceStr(q.ask);
+            //const string bidAskTemplate =  "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"bid\\\":{bid},\\\"bidStr\\\":\\\"{bidStr}\\\",\\\"ask\\\":{ask},\\\"askStr\\\":\\\"{askStr}\\\"}]\\\"\"}";
             const string bidAskTemplate =
-                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"bid\\\":{bid},\\\"bidStr\\\":\\\"{bidStr}\\\",\\\"ask\\\":{ask},\\\"askStr\\\":\\\"{askStr}\\\"}]\\\"\"}";
-
+                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"objectType\":\"INSTRS\",\"data\":[{\"instrument_id\":{IdObject},\"ticker\":\"{ticker}\",\"shortName\":\"{shortName}\",\"sourceName\":\"{sourceName}\",\"tickerVisible\":\"{tickerVisible}\",\"bid\":{bid},\"bidStr\":\"{bidStr}\",\"ask\":{ask},\"askStr\":\"{askStr}\"}]}";
             return new SignalRQuoteUpdateDto
             {
                 IdObject = idObject,
@@ -942,9 +944,9 @@ GO
                 .ToList();
             if (messageTexts.Count == 0)
                 return;
-
-            string jsonPayload = BuildSignalRMarketDataPayload(messageTexts);
-            await PostSignalRPayloadAsync(jsonPayload, endpoints).ConfigureAwait(false);
+            string atiContent = "";
+            string jsonPayload = BuildSignalRMarketDataPayload(messageTexts, ref atiContent);
+            await PostSignalRPayloadAsync(jsonPayload, endpoints, "INSTR", atiContent).ConfigureAwait(false);
         }
 
         /// <summary>Bulk insert в dbo.signalRMessages (как MulticastChat BulkInsertSignalRMessagesInstrs).</summary>
@@ -1065,8 +1067,9 @@ GO
 
             if (endpoints.Count > 0)
             {
-                string jsonPayload = BuildGlassSignalRPayload(containers);
-                _ = PostSignalRPayloadAsync(jsonPayload, endpoints);
+                string atiContent = "";
+                string jsonPayload = BuildGlassSignalRPayload(containers,ref  atiContent);
+                _ = PostSignalRPayloadAsync(jsonPayload, endpoints, "GLASS", atiContent);
             }
 
             if (!MarketDataDbContextFactory.IsInitialized)
@@ -1076,10 +1079,11 @@ GO
         }
 
         /// <summary>SignalR payload для INSTRS (MessageText как есть, без [{...}] обёртки на каждый тикер).</summary>
-        private static string BuildSignalRMarketDataPayload(IEnumerable<string> messageJsonParts)
+        private static string BuildSignalRMarketDataPayload(IEnumerable<string> messageJsonParts, ref string atiContent)
         {
             var parts = messageJsonParts.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
             string jsonArray = "[" + string.Join(",", parts) + "]";
+            atiContent = jsonArray;
             string encodedString = Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonArray));
             return JsonConvert.SerializeObject(new { Type = "sendMarketDataITS", Payload = encodedString });
         }
@@ -1216,8 +1220,12 @@ GO
                 recToLog($"INSTRS branch error: {ex.Message}");
             }
         }
-
-        private async Task PostSignalRPayloadAsync(string jsonPayload, IEnumerable<string> endpoints)
+        public class atiContents
+        {
+            public string type { get; set; }
+            public string message { get; set; }
+        }
+        private async Task PostSignalRPayloadAsync(string jsonPayload, IEnumerable<string> endpoints, string messageType = null, string atiContent = null)
         {
             using (var client = new HttpClient())
             {
@@ -1226,6 +1234,10 @@ GO
                     try
                     {
                         string responseText = "";
+                        if(url.Contains(".bcc.kz", StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            jsonPayload = JsonConvert.SerializeObject(new { type = messageType, message = JsonConvert.DeserializeObject(atiContent) });
+                        }
 
                         var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
                         HttpResponseMessage response = null;
