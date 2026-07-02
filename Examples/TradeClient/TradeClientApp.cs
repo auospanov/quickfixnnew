@@ -1225,8 +1225,17 @@ GO
                 {
                     try
                     {
+                        string responseText = "";
+
                         var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-                        await client.PostAsync(url, content).ConfigureAwait(false);
+                        HttpResponseMessage response = null;
+                        response =await client.PostAsync(url, content).ConfigureAwait(false);
+                        responseText = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                         recToLog(
+                                $"INSTRS branch request URL: {url}\r\n" +
+                                $"INSTRS branch request content: {jsonPayload}\r\n" +
+                                $"INSTRS branch response status: {(int)response.StatusCode} {response.StatusCode}\r\n" +
+                                $"INSTRS branch response content: {responseText}");
                     }
                     catch (Exception ex)
                     {
