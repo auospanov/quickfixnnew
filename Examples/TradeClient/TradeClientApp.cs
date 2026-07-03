@@ -869,10 +869,10 @@ GO
             string pctChg1DColor = pctChg1D > 0 ? "#008000" : pctChg1D < 0 ? "#FF0000" : "#808080";
             string last1 = q.lastTrade!.Value.ToString(CultureInfo.InvariantCulture);
             string last1Str = FormatQuotePriceStr(q.lastTrade);
-
+            
             //const string lastTemplate = "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"last1\\\":{last1},\\\"last1Str\\\":\\\"{last1Str}\\\",\\\"pctChg1D\\\":{pctChg1D},\\\"pctChg1DStr\\\":\\\"{pctChg1DStr}\\\",\\\"pctChg1DColor\\\":\\\"{pctChg1DColor}\\\"}]\\\"\"}";
             const string lastTemplate =
-    "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"isin\":\"{isin}\",\"shortName\":\"{shortName}\",\"tradeCurrency\":\"{tradeCurrency}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":[{\"instrument_id\":{IdObject},\"ticker\":\"{ticker}\",\"shortName\":\"{shortName}\",\"sourceName\":\"{sourceName}\",\"tickerVisible\":\"{tickerVisible}\",\"currencyCode\":\"{tradeCurrency}\",\"last1\":{last1},\"last1Str\":\"{last1Str}\",\"pctChg1D\":{pctChg1D},\"pctChg1DStr\":\"{pctChg1DStr}\",\"pctChg1DColor\":\"{pctChg1DColor}\"}]}";
+    "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"isin\":\"{isin}\",\"shortName\":\"{shortName}\",\"tradeCurrency\":\"{tradeCurrency}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":[{\"instrument_id\":{IdObject},\"ticker\":\"{ticker}\",\"shortName\":\"{shortName}\",\"sourceName\":\"{sourceName}\",\"tickerVisible\":\"{tickerVisible}\",\"currencyCode\":\"{tradeCurrency}\",\"lastDealPrice\":{last1},\"last1\":{last1},\"last1Str\":\"{last1Str}\",\"pctChg1D\":{pctChg1D},\"pctChg1DStr\":\"{pctChg1DStr}\",\"pctChg1DColor\":\"{pctChg1DColor}\"}]}";
             return new SignalRQuoteUpdateDto
             {
                 IdObject = idObject,
