@@ -565,7 +565,11 @@ GO
         {
             if (!lastTrade.HasValue || lastTrade.Value == 0 || instr == null || instr.lastPrevDay == 0)
                 return 0;
-            return lastTrade.Value * 100m / instr.lastPrevDay - 100m;
+            //return lastTrade.Value * 100m / instr.lastPrevDay - 100m;
+            return Math.Round(
+                    lastTrade.Value * 100m / instr.lastPrevDay - 100m,
+                    2,
+                    MidpointRounding.AwayFromZero);
         }
 
         private static string GetInstrumentKey(string idObject, string? tickerFallback)
@@ -868,7 +872,7 @@ GO
 
             //const string lastTemplate = "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"last1\\\":{last1},\\\"last1Str\\\":\\\"{last1Str}\\\",\\\"pctChg1D\\\":{pctChg1D},\\\"pctChg1DStr\\\":\\\"{pctChg1DStr}\\\",\\\"pctChg1DColor\\\":\\\"{pctChg1DColor}\\\"}]\\\"\"}";
             const string lastTemplate =
-    "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":[{\"instrument_id\":{IdObject},\"ticker\":\"{ticker}\",\"shortName\":\"{shortName}\",\"sourceName\":\"{sourceName}\",\"tickerVisible\":\"{tickerVisible}\",\"last1\":{last1},\"last1Str\":\"{last1Str}\",\"pctChg1D\":{pctChg1D},\"pctChg1DStr\":\"{pctChg1DStr}\",\"pctChg1DColor\":\"{pctChg1DColor}\"}]}";
+    "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"isin\":\"{isin}\",\"shortName\":\"{shortName}\",\"tradeCurrency\":\"{tradeCurrency}\",\"board\":\"\",\"objectType\":\"INSTRS\",\"data\":[{\"instrument_id\":{IdObject},\"ticker\":\"{ticker}\",\"shortName\":\"{shortName}\",\"sourceName\":\"{sourceName}\",\"tickerVisible\":\"{tickerVisible}\",\"currencyCode\":\"{tradeCurrency}\",\"last1\":{last1},\"last1Str\":\"{last1Str}\",\"pctChg1D\":{pctChg1D},\"pctChg1DStr\":\"{pctChg1DStr}\",\"pctChg1DColor\":\"{pctChg1DColor}\"}]}";
             return new SignalRQuoteUpdateDto
             {
                 IdObject = idObject,
@@ -914,7 +918,7 @@ GO
             string askStr = FormatQuotePriceStr(q.ask);
             //const string bidAskTemplate =  "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"bid\\\":{bid},\\\"bidStr\\\":\\\"{bidStr}\\\",\\\"ask\\\":{ask},\\\"askStr\\\":\\\"{askStr}\\\"}]\\\"\"}";
             const string bidAskTemplate =
-                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"objectType\":\"INSTRS\",\"data\":[{\"instrument_id\":{IdObject},\"ticker\":\"{ticker}\",\"shortName\":\"{shortName}\",\"sourceName\":\"{sourceName}\",\"tickerVisible\":\"{tickerVisible}\",\"bid\":{bid},\"bidStr\":\"{bidStr}\",\"ask\":{ask},\"askStr\":\"{askStr}\"}]}";
+                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"isin\":\"{isin}\",\"shortName\":\"{shortName}\",\"tradeCurrency\":\"{c}\",\"objectType\":\"INSTRS\",\"data\":[{\"instrument_id\":{IdObject},\"ticker\":\"{ticker}\",\"shortName\":\"{shortName}\",\"sourceName\":\"{sourceName}\",\"tickerVisible\":\"{tickerVisible}\",\"currencyCode\":\"{tradeCurrency}\",\"bid\":{bid},\"bidStr\":\"{bidStr}\",\"ask\":{ask},\"askStr\":\"{askStr}\"}]}";
             return new SignalRQuoteUpdateDto
             {
                 IdObject = idObject,
