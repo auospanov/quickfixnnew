@@ -918,7 +918,7 @@ GO
             string askStr = FormatQuotePriceStr(q.ask);
             //const string bidAskTemplate =  "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"isin\":\"{isin}\",\"tradeCurrency\":\"{tradeCurrency}\",\"objectType\":\"INSTRS\",\"data\":\"\\\"[{\\\"instrument_id\\\":{IdObject},\\\"ticker\\\":\\\"{ticker}\\\",\\\"shortName\\\":\\\"{shortName}\\\",\\\"sourceName\\\":\\\"{sourceName}\\\",\\\"tickerVisible\\\":\\\"{tickerVisible}\\\",\\\"bid\\\":{bid},\\\"bidStr\\\":\\\"{bidStr}\\\",\\\"ask\\\":{ask},\\\"askStr\\\":\\\"{askStr}\\\"}]\\\"\"}";
             const string bidAskTemplate =
-                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"isin\":\"{isin}\",\"shortName\":\"{shortName}\",\"tradeCurrency\":\"{c}\",\"objectType\":\"INSTRS\",\"data\":[{\"instrument_id\":{IdObject},\"ticker\":\"{ticker}\",\"shortName\":\"{shortName}\",\"sourceName\":\"{sourceName}\",\"tickerVisible\":\"{tickerVisible}\",\"currencyCode\":\"{tradeCurrency}\",\"bid\":{bid},\"bidStr\":\"{bidStr}\",\"ask\":{ask},\"askStr\":\"{askStr}\"}]}";
+                "{\"sourceName\":\"{sourceName}\",\"ticker\":\"{ticker}\",\"board\":\"\",\"isin\":\"{isin}\",\"shortName\":\"{shortName}\",\"tradeCurrency\":\"{tradeCurrency}\",\"objectType\":\"INSTRS\",\"data\":[{\"instrument_id\":{IdObject},\"ticker\":\"{ticker}\",\"shortName\":\"{shortName}\",\"sourceName\":\"{sourceName}\",\"tickerVisible\":\"{tickerVisible}\",\"currencyCode\":\"{tradeCurrency}\",\"bid\":{bid},\"bidStr\":\"{bidStr}\",\"ask\":{ask},\"askStr\":\"{askStr}\"}]}";
             return new SignalRQuoteUpdateDto
             {
                 IdObject = idObject,
