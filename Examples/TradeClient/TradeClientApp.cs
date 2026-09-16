@@ -432,6 +432,8 @@ GO
             if (string.IsNullOrEmpty(func))
                 return;
             string boardCol = includeBoard ? "\"board\":\"' || secboard || '\"," : "";
+            string is_aix_omnibus = Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) ? "\"is_aix_omnibus\":\"' || IS_AIX_OMNIBUS || '\",'" : "";
+
             // Вызов Oracle table-функции (например hb_getordersforsend): выполняется при cmd.ExecuteReader() через "from table (prefix + func)"
             string query =
                 "select '{\"objectType\":\"ais_order\"," +
@@ -441,6 +443,7 @@ GO
                 "\"client_id\":\"' || client_id || '\"," +
                 "\"client_fio\":\"' || replace(client_fio,'\"','') || '\"," +
                 "\"cd_account\":\"' || cd_account || '\"," +
+                is_aix_omnibus +
                 "\"order_number\":\"' || order_number || '\"," +
                 "\"order_date\":\"' || to_char(order_date,'YYYY-MM-DD') || '\"," +
                 "\"registered_date\":\"' || to_char(registered_date,'YYYY-MM-DD HH24:MI:SS') || '\"," +
