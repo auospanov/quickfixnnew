@@ -432,7 +432,7 @@ GO
             if (string.IsNullOrEmpty(func))
                 return;
             string boardCol = includeBoard ? "\"board\":\"' || secboard || '\"," : "";
-            string is_aix_omnibus = Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) ? "\"is_aix_omnibus\":\"' || IS_AIX_OMNIBUS || '\",'" : "";
+            string is_aix_omnibus = Program.BROKER.Equals("JYSAN", StringComparison.OrdinalIgnoreCase) ? "\"is_aix_omnibus\":\"' || IS_AIX_OMNIBUS || '\"," : "";
 
             // Вызов Oracle table-функции (например hb_getordersforsend): выполняется при cmd.ExecuteReader() через "from table (prefix + func)"
             string query =
