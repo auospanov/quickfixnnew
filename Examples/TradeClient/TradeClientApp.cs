@@ -5268,7 +5268,7 @@ GO
                     if (Program.EXCH_CODE == "AIX")
                     {
 
-                      QuickFix.FIX50SP2.NewOrderSingle ord1 = new QuickFix.FIX50SP2.NewOrderSingle(
+                        QuickFix.FIX50SP2.NewOrderSingle ord1 = new QuickFix.FIX50SP2.NewOrderSingle(
                           new ClOrdID(r.Id.ToString()),
                           new Side(s),
                           new TransactTime(DateTime.Now),
@@ -5303,7 +5303,16 @@ GO
                             if(r.MaxFloor>0) ord1.Set(new MaxFloor(r.MaxFloor.Value));
                         }
 
-                        ord1.Set(new Account(r.Investor));
+                        //17.09.2026 изм. в связи в введением модели Омнибус
+                        //если в Investor приходит значение, начинающееся на NIN, то значит это сегрегированный счет, и мы его передаем в поле 70, иначе по старому (и тогда расчет будет в омнибусе)
+                        if (!string.IsNullOrEmpty(r.Investor) && r.Investor.Substring(0, 3) == "NIN")
+                        {
+                            ord1.Set(new AllocID(r.Investor));
+                        }
+                        else
+                        {
+                            ord1.Set(new Account(r.Investor));
+                        }
                         ord1.Set(new OrderCapacity(r.Acc));
                         ord1.Header.GetString(Tags.BeginString);
 
