@@ -5308,7 +5308,7 @@ GO
                         if (!string.IsNullOrEmpty(r.Investor) && r.Investor.Substring(0, 3) == "NIN")
                         {
                             ord1.Set(new AllocID(r.Investor));
-                            ord1.Set(new Account("DO"));
+                            ord1.Set(new Account(r.Investor.Substring(3)));
                         }
                         else
                         {
