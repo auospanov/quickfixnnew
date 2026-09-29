@@ -1891,22 +1891,9 @@ GO
 
             if (message is QuickFix.FIXT11.Heartbeat || message is QuickFix.FIX44.Heartbeat)
             {
-                try
-                {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
-                        db.heartbeat.Add(new heartbeat() { exchangeCode = Program.ADAPTER, lastTime = DateTime.Now, isReal = Program.ISREAL, isMM = Program.isMMorder });
-                        db.SaveChanges();
-                    }
-                }
-                catch (Exception e)
-                {
-                    DailyLogger.Log($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(message));
-                    recToLog($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(message));
-                }
+                // Не блокируем FIX session thread синхронным SaveChanges — иначе не успеваем ответить на TestRequest.
+                PersistHeartbeatAsync();
                 UpdateLastSessionActivityUtc();
-
             }
             else if (message is QuickFix.FIXT11.Reject m)
             {
@@ -2865,18 +2852,34 @@ GO
 
         public void OnMessage(QuickFix.FIX44.Heartbeat m, SessionID s)
         {
-            try { 
+            PersistHeartbeatAsync();
+        }
+
+        /// <summary>Запись heartbeat в БД вне FIX-потока (session thread не ждёт SQL).</summary>
+        private void PersistHeartbeatAsync()
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
                     using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                     {
-                        var db = wrapper.Context;
-                        db.heartbeat.Add(new heartbeat() {  exchangeCode = Program.ADAPTER, lastTime  =DateTime.Now, isReal = Program.ISREAL, isMM = Program.isMMorder});
-                        db.SaveChanges();
+                        wrapper.Context.heartbeat.Add(new heartbeat
+                        {
+                            exchangeCode = Program.ADAPTER,
+                            lastTime = DateTime.Now,
+                            isReal = Program.ISREAL,
+                            isMM = Program.isMMorder
+                        });
+                        wrapper.Context.SaveChanges();
+                    }
                 }
-            }
-            catch(Exception e) {
-                DailyLogger.Log($"[Heartbeat] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
-                recToLog("Heartbeat - " + e.Message);
-            }
+                catch (Exception e)
+                {
+                    DailyLogger.Log($"[Heartbeat] PersistHeartbeatAsync: {e.Message}");
+                    recToLog($"Heartbeat - {e.Message}");
+                }
+            });
         }
   
         public void OnMessage(QuickFix.FIX44.ExecutionReport m, SessionID s)
