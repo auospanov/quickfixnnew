@@ -511,6 +511,13 @@ GO
                 || raw.Equals("true", StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>Вывод в консоль только если IsWriteToConsole=Y/1 в cfg.</summary>
+        private void WriteConsole(string message)
+        {
+            if (IsCfgFlagEnabled("IsWriteToConsole"))
+                Console.WriteLine(message);
+        }
+
         private static List<string> GetSignalREndpointsFromCfg()
         {
             string configured = Program.GetValueByKey(Program.cfg, "SignalREndpoints") ?? "";
@@ -1384,7 +1391,7 @@ GO
             }
 
             if (isDebug)
-                Console.WriteLine($"[{DateTime.Now}] Timer ticked!");
+                WriteConsole($"[{DateTime.Now}] Timer ticked!");
 
             if (isStop(Program.GetValueByKey(Program.cfg, "ConnectionString")))
             {
@@ -1853,7 +1860,7 @@ GO
 
         public void FromAdmin(Message message, SessionID sessionId)
         {
-            if (isDebug) Console.WriteLine("FromAdmin - " + message.ToString());
+            WriteConsole("FromAdmin - " + message.ToString());
 
             if (message.Header.GetString(Tags.MsgType) == MsgType.LOGON)
             {
@@ -1897,86 +1904,61 @@ GO
             }
             else if (message is QuickFix.FIXT11.Reject m)
             {
-                //if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+                WriteConsole("Received Session Reject (FIXT11)");
+                try
                 {
-                    if (isDebug) Console.WriteLine("Received BusinessMessageReject");
-                    try
+                    int refSeq = 0;
+                    try { refSeq = int.Parse(m.RefSeqNum.Value.ToString()); } catch { }
+                    string text = m.IsSetField(QuickFix.Fields.Tags.Text) ? m.GetString(QuickFix.Fields.Tags.Text) : string.Empty;
+                    var order = new orders
                     {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
-                            int clOrdId = 0;
-
-                            try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(m.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
-
-                            var order = new orders();
-                            order.msgNum = int.Parse(m.Header.GetString(34));
-                            order.orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}";
-                            order.status = "REJECTED";
-                            order.clientID = "RefMsgType = " + m.RefMsgType.Value;
-                            order.executionTime = m.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime);
-                            order.fullMessage = m.ToJSON();
-                            string text = m.IsSetField(QuickFix.Fields.Tags.Text) ? m.GetString(QuickFix.Fields.Tags.Text) : string.Empty;
-                            order.comments = $"Tag={m.RefTagID}, Reason={m.SessionRejectReason} {text}";
-                            order.exchangeCode = Program.EXCH_CODE;
-                            order.serial = m.RefSeqNum.Value.ToString();
-                            order.isReal = Program.ISREAL;
-
-                            if (clOrdId > 0) order.clientOrderID = clOrdId.ToString();
-
-                            db.orders.Add(order);
-                            db.SaveChanges();
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
-                        recToLog($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
-                    }
+                        msgNum = int.Parse(m.Header.GetString(34)),
+                        orderReferenceExchange = $"MsgType = {m.Header.GetString(35)}",
+                        status = "REJECTED",
+                        clientID = "RefMsgType = " + m.RefMsgType.Value,
+                        executionTime = m.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime),
+                        fullMessage = m.ToJSON(),
+                        comments = $"Tag={m.RefTagID}, Reason={m.SessionRejectReason} {text}",
+                        exchangeCode = Program.EXCH_CODE,
+                        serial = m.RefSeqNum.Value.ToString(),
+                        isReal = Program.ISREAL
+                    };
+                    PersistOrderAsync(order, refSeq > 0 ? refSeq : null);
                 }
-
+                catch (Exception e)
+                {
+                    DailyLogger.Log($"[Reject] FromAdmin : {e.Message} " + JsonConvert.SerializeObject(m));
+                    recToLog($"[Reject] FromAdmin : {e.Message}");
+                }
             }
             else if (message is QuickFix.FIX44.Reject rj)
             {
-                //if (Program.GetValueByKey(Program.cfg, "IsWriteOrder") == "1")
+                WriteConsole("Received Reject");
+                try
                 {
-                    if (isDebug) Console.WriteLine("Received Reject");
-                    try
+                    int refSeq = 0;
+                    try { refSeq = int.Parse(rj.RefSeqNum.Value.ToString()); } catch { }
+                    string text = rj.IsSetField(58) ? rj.GetString(58) : string.Empty;
+                    var order = new orders
                     {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
-                            int clOrdId = 0;
-
-                            try { clOrdId = db.NewOrders.Where(r => r.msgNum == int.Parse(rj.RefSeqNum.Value.ToString())).OrderByDescending(r => r.Id).Select(r => r.Id).FirstOrDefault(); } catch { }
-
-                            var order = new orders();
-                            order.msgNum = int.Parse(rj.Header.GetString(34));
-                            order.orderReferenceExchange = $"MsgType = {rj.Header.GetString(35)}";
-                            order.status = "REJECTED";
-                            order.clientID = "RefMsgType = " + rj.RefMsgType.Value;
-                            order.executionTime = rj.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime);
-                            order.fullMessage = rj.ToJSON();
-                            string text = rj.GetString(58);
-                            //string text = rj.IsSetField(QuickFix.Fields.Tags.Text) ? rj.GetString(QuickFix.Fields.Tags.Text) : string.Empty;
-                            order.comments = $"Tag=58, Reason={text}";
-                            order.exchangeCode = Program.EXCH_CODE;
-                            order.serial = rj.RefSeqNum.Value.ToString();
-                            order.isReal = Program.ISREAL;
-
-                            if (clOrdId > 0) order.clientOrderID = clOrdId.ToString();
-
-                            db.orders.Add(order);
-                            db.SaveChanges();
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        DailyLogger.Log($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(rj));
-                        recToLog($"[ExecutionReport] OnMessage : {e.Message} " + JsonConvert.SerializeObject(rj));
-                    }
+                        msgNum = int.Parse(rj.Header.GetString(34)),
+                        orderReferenceExchange = $"MsgType = {rj.Header.GetString(35)}",
+                        status = "REJECTED",
+                        clientID = "RefMsgType = " + rj.RefMsgType.Value,
+                        executionTime = rj.Header.GetDateTime(QuickFix.Fields.Tags.SendingTime),
+                        fullMessage = rj.ToJSON(),
+                        comments = $"Tag=58, Reason={text}",
+                        exchangeCode = Program.EXCH_CODE,
+                        serial = rj.RefSeqNum.Value.ToString(),
+                        isReal = Program.ISREAL
+                    };
+                    PersistOrderAsync(order, refSeq > 0 ? refSeq : null);
                 }
-
+                catch (Exception e)
+                {
+                    DailyLogger.Log($"[Reject] FromAdmin : {e.Message} " + JsonConvert.SerializeObject(rj));
+                    recToLog($"[Reject] FromAdmin : {e.Message}");
+                }
             }
             else if (message is QuickFix.FIX44.Logon logon)
             {
@@ -2217,11 +2199,11 @@ GO
         }
         public void FromApp(Message message, SessionID sessionId)
         {
-            if (isDebug) Console.WriteLine("IN:  " + message.ConstructString());
+            WriteConsole("IN:  " + message.ConstructString());
             try
             {
                 Crack(message, sessionId);
-                Console.WriteLine($"[FromApp] {message}");
+                WriteConsole($"[FromApp] {message}");
                 UpdateLastSessionActivityUtc();
 
             }
@@ -2878,6 +2860,45 @@ GO
                 {
                     DailyLogger.Log($"[Heartbeat] PersistHeartbeatAsync: {e.Message}");
                     recToLog($"Heartbeat - {e.Message}");
+                }
+            });
+        }
+
+        /// <summary>Запись orders в БД вне FIX-потока (для Reject в FromAdmin).</summary>
+        private void PersistOrderAsync(orders order, int? refMsgNumForClientLookup = null)
+        {
+            if (order == null)
+                return;
+
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                    {
+                        var db = wrapper.Context;
+                        if (refMsgNumForClientLookup.HasValue && string.IsNullOrEmpty(order.clientOrderID))
+                        {
+                            try
+                            {
+                                int clOrdId = db.NewOrders
+                                    .Where(r => r.msgNum == refMsgNumForClientLookup.Value)
+                                    .OrderByDescending(r => r.Id)
+                                    .Select(r => r.Id)
+                                    .FirstOrDefault();
+                                if (clOrdId > 0)
+                                    order.clientOrderID = clOrdId.ToString();
+                            }
+                            catch { }
+                        }
+                        db.orders.Add(order);
+                        db.SaveChanges();
+                    }
+                }
+                catch (Exception e)
+                {
+                    DailyLogger.Log($"[PersistOrderAsync] {e.Message}");
+                    recToLog($"PersistOrderAsync - {e.Message}");
                 }
             });
         }
@@ -4501,11 +4522,9 @@ GO
         
         public void OnMessage(QuickFix.FIX44.MarketDataIncrementalRefresh m, SessionID s)
         {
-            if(isDebug) Console.WriteLine("Received MarketDataIncrementalRefresh");
-            try { 
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
+            WriteConsole("Received MarketDataIncrementalRefresh");
+            try
+            {
                 string symbol = null;
                 var mdEntries = new List<MdEntryLevel>();
 
@@ -4551,9 +4570,9 @@ GO
                             Size = size ?? 0
                         });
                     }
-                    else if (isDebug)
+                    else
                     {
-                        Console.WriteLine($"Unknown MDEntryType: {mdEntryType}");
+                        WriteConsole($"Unknown MDEntryType: {mdEntryType}");
                     }
                 }
 
@@ -4575,8 +4594,8 @@ GO
                     TryEnqueueGlassFromMdEntries(symbol, bidLevels, askLevels);
                 }
             }
-             }
-            catch(Exception e) {
+            catch (Exception e)
+            {
                 DailyLogger.Log($"[MarketDataIncrementalRefresh] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
                 recToLog("MarketDataIncrementalRefresh - " + e.Message);
             }
@@ -4588,11 +4607,9 @@ GO
         
         public void OnMessage(QuickFix.FIX44.MarketDataSnapshotFullRefresh m, SessionID sy)
         {
-            if(isDebug) Console.WriteLine("Received MarketDataSnapshotFullRefresh");
-            try { 
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
-                    {
-                        var db = wrapper.Context;
+            WriteConsole("Received MarketDataSnapshotFullRefresh");
+            try
+            {
                 string symbol = null;
                 if (m.IsSetField(QuickFix.Fields.Symbol.TAG))
                 {
@@ -4603,7 +4620,7 @@ GO
 
                 if (string.IsNullOrEmpty(symbol))
                 {
-                    if(isDebug) Console.WriteLine("Symbol not found in Snapshot. Skipping...");
+                    WriteConsole("Symbol not found in Snapshot. Skipping...");
                     return;
                 }
 
@@ -4643,9 +4660,9 @@ GO
                             Size = size ?? 0
                         });
                     }
-                    else if (isDebug)
+                    else
                     {
-                        Console.WriteLine($"Skipping unknown MDEntryType: {mdEntryType}");
+                        WriteConsole($"Skipping unknown MDEntryType: {mdEntryType}");
                     }
                 }
 
@@ -4664,8 +4681,8 @@ GO
                     TryEnqueueGlassFromMdEntries(symbol, bidLevels, askLevels);
                 }
             }
-             }
-            catch(Exception e) {
+            catch (Exception e)
+            {
                 DailyLogger.Log($"[MarketDataSnapshotFullRefresh] OnMessage : {e.Message} " + JsonConvert.SerializeObject(m));
                 recToLog("MarketDataSnapshotFullRefresh - " + e.Message);
             }
