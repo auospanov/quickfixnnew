@@ -3929,7 +3929,13 @@ GO
                     tc.ExecID = m.ExecID.Value;
                     tc.LastQty = m.LastQty.Value.ToString();
                     tc.LastPx = m.LastPx.Value.ToString();
-                    if (m.IsSetField(1056)) tc.CalculatedCcyLastQty = m.GetString(1056);
+                    if (m.IsSetField(1056))
+                    {
+                        if (decimal.TryParse(m.GetString(1056), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var calcQty))
+                            tc.CalculatedCcyLastQty = calcQty.ToString("0.#############################", System.Globalization.CultureInfo.InvariantCulture);
+                        else
+                            tc.CalculatedCcyLastQty = m.GetString(1056);
+                    }
                     tc.TradeDate = m.TradeDate.Value;
                     tc.TransactTime=m.TransactTime.Value.ToString();
                     if (m.IsSetField(64)) tc.SettlDate = m.SettlDate.Value;
