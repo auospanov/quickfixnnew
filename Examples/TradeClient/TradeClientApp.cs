@@ -3835,7 +3835,95 @@ GO
                     {
                         var db = wrapper.Context;
                     tradeCapture tc = new tradeCapture();
+                    tc.exchangeCode = Program.EXCH_CODE; //добавил 19.11.2026
                     tc.TradeReportID = m.TradeReportID.Value;
+                    
+
+                    if(m.IsSetField(Tags.TrdType)) tc.TrdType = m.TrdType.Value.ToString(); //добавил 19.11.2026
+                    if(m.IsSetField(Tags.TrdSubType)) tc.TrdSubType=m.TrdSubType.Value.ToString(); //добавил 19.11.2026
+                    if(m.IsSetField(Tags.Symbol)) tc.ticker = m.Symbol.Value; //добавил 19.11.2026
+                    if(m.IsSetField(Tags.Yield)) tc.Yield = m.Yield.Value.ToString(); //добавил 19.11.2026
+                    if(m.IsSetField(Tags.PriceType)) tc.PriceType = m.PriceType.Value.ToString(); //добавил 19.11.2026
+                    if (m.IsSetField(311)) //добавил 19.11.2026
+                    {
+                        tc.UnderlyingSymbol = m.GetString(311);
+                    }
+                    //TradingSessionId (Board)
+                    if (m.IsSetField(336)) //добавил 19.11.2026
+                    {
+                        tc.UnderlyingSymbol = m.GetString(336);
+                    }
+                    //TradingSessionSubId
+                    if (m.IsSetField(625)) //добавил 19.11.2026
+                    {
+                        tc.TradingSessionSubID = m.GetString(625);
+                    }
+                    //GrossTradeAmt
+                    if (m.IsSetField(381)) //добавил 19.11.2026
+                    {
+                        tc.GrossTradeAmt = m.GetDecimal(381).ToString();
+                    }
+                    //AccruedInterestAmt
+                    if (m.IsSetField(159)) //добавил 19.11.2026
+                    {
+                        tc.AccruedInterestAmt = m.GetDecimal(159).ToString();
+                    }
+                    //SettlCurrAmt
+                    if (m.IsSetField(119)) //добавил 19.11.2026
+                    {
+                        tc.SettlCurrAmt = m.GetDecimal(119).ToString();
+                    }
+                    //EndAccruedInterestAmt
+                    if (m.IsSetField(920)) //добавил 19.11.2026
+                    {
+                        tc.EndAccruedInterestAmt = m.GetDecimal(920).ToString();
+                    }
+                    //StartCash
+                    if (m.IsSetField(921)) //добавил 19.11.2026
+                    {
+                        tc.StartCash = m.GetDecimal(921).ToString();
+                    }
+                    //EndCash
+                    if (m.IsSetField(922)) //добавил 19.11.2026
+                    {
+                        tc.EndCash = m.GetDecimal(922).ToString();
+                    }
+                    //PriceType
+                    if (m.IsSetField(423)) //добавил 19.11.2026
+                    {
+                        tc.PriceType = m.GetString(423);
+                    }
+                    //InstitutionId
+                    if (m.IsSetField(5155)) //добавил 19.11.2026
+                    {
+                        tc.InstitutionID = m.GetString(5155);
+                    }
+                    //CurrencyCode
+                    if (m.IsSetField(6029)) //добавил 19.11.2026
+                    {
+                        tc.CurrencyCode = m.GetString(6029);
+                    }
+                    //ClientAccID
+                    if (m.IsSetField(7693)) //добавил 19.11.2026
+                    {
+                        tc.ClientAccID = m.GetString(7693);
+                    }
+                    //ParentID
+                    if (m.IsSetField(9580)) //добавил 19.11.2026
+                    {
+                        tc.ParentID = m.GetString(9580);
+                    }
+                    //Commission
+                    if (m.IsSetField(12)) //добавил 19.11.2026
+                    {
+                        tc.Commission = m.GetString(12);
+                    }
+                    //CommissionTYpe
+                    if (m.IsSetField(13)) //добавил 19.11.2026
+                    {
+                        tc.CommType = m.GetString(13);
+                    }
+
                     if (m.IsSetField(818)) tc.SecondaryTradeReportID = m.SecondaryTradeReportID.Value;
                     tc.ExecType = m.ExecType.Value.ToString();
                     tc.ExecID = m.ExecID.Value;
@@ -3846,8 +3934,55 @@ GO
                     tc.TransactTime=m.TransactTime.Value.ToString();
                     if (m.IsSetField(64)) tc.SettlDate = m.SettlDate.Value;
                     if (m.IsSetField(5459)) tc.OptionSettlType=m.GetString(5459);
+                    //если есть группа NoMiscFees
+                    if(m.IsSetField(136))
+                    {
+                        int miscFeesCount = m.GroupCount(136);
+                        for (int i = 0; i < miscFeesCount; i++)
+                        {
+                            /*
+                            QuickFix.FIX44.TradeCaptureReport.NoMiscFeesGroup miscFeesGroup =
+                                new QuickFix.FIX44.TradeCaptureReport.NoMiscFeesGroup();
+                            m.GetGroup(i, miscFeesGroup);
+                            // Читаем поля внутри группы
+                            if (miscFeesGroup.IsSetMiscFeeAmt())
+                            {
+                                var miscFeeAmtField = new MiscFeeAmt();
+                                miscFeesGroup.GetField(miscFeeAmtField);
+                                tc.MiscFeeAmt = miscFeeAmtField.Value.ToString();
+                            }
+                            */
+                            Group miscFeesGroup = m.GetGroup(i, 136); // 136 = NoMiscFees
+                            if(miscFeesGroup.IsSetField(139))
+                            {
+                                string feeType = miscFeesGroup.GetString(139); // 139 = MiscFeeType
+                                if(feeType=="4") //комиссия биржи
+                                {
+                                    if (miscFeesGroup.IsSetField(137)) // 137 = MiscFeeAmt
+                                    {
+                                        tc.MiscFeeAmt_Exchange = miscFeesGroup.GetString(137);
+                                    }
+                                }
+                                else if (feeType == "98") //комиссия биржи
+                                {
+                                    if (miscFeesGroup.IsSetField(137)) // 137 = MiscFeeAmt
+                                    {
+                                        tc.MiscFeeAmt_Clearing = miscFeesGroup.GetString(137);
+                                    }
+                                }
+                                else if (feeType == "99") //комиссия за тех.доступ
+                                {
+                                    if (miscFeesGroup.IsSetField(137)) // 137 = MiscFeeAmt
+                                    {
+                                        tc.MiscFeeAmt_Access = miscFeesGroup.GetString(137);
+                                    }
+                                }
+                            }
+                            
+                        }
+                    }
                     //если есть группа NoSides
-                    if(m.IsSetNoSides())
+                    if (m.IsSetNoSides())
                     {
                         int sidesCount = m.NoSides.Value; //m.GetInt(552);
                         for (int i = 0; i < sidesCount; i++)
@@ -3894,10 +4029,6 @@ GO
                     if (m.IsSetField(640))
                     {
                         tc.Price2 = m.GetDecimal(640).ToString();
-                    }
-                    if (m.IsSetField(Tags.PriceType))
-                    {
-                        tc.PriceType = m.GetInt(Tags.PriceType).ToString();
                     }
                     if (m.IsSetField(5155))
                     {
