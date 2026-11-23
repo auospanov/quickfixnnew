@@ -4125,7 +4125,10 @@ GO
                 recToLog("Ошибка TradeCaptureReport - " + ex.Message);
             }
         }
-
+        public void OnMessage(QuickFix.FIX44.TradingSessionStatus mes, SessionID s)
+        {
+            //заглушка, чтобы не падало приложение при получении сообщения 
+        }
 
 
         public class tradeCapture1
