@@ -21,6 +21,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -3827,20 +3828,46 @@ GO
                 }
             }
         }
+        private string getTrdTypeNameTCR(string trdType)
+        {
+            switch (trdType)
+            {
+                case "0": return "Обычная сделка";
+                case "2": return "РЕПО с ЦК";
+                case "22": return "Адресная сделка";
+                case "53": return "Сделка РЕПО";
+                case "101": return "Компенсационный";
+                case "102": return "Техническая сделка по возврату активов РЕПО с ЦК";
+                case "F": return "Перевод";
+                default: return "Unknown Trade Type";
+            }
+        }
+        private string getTrdSubTypeNameTCR(string trdSubType)
+        {
+            switch (trdSubType)
+            {
+                case "1": return "1-ая часть сделки РЕПО";
+                case "2": return "2-ая часть сделки РЕПО";
+                case "3": return "Расчетная сделка по инструменту СВОП";
+                case "4": return "Расчетная сделка по инструменту бивалютная nкорзина";
+                case "5": return "Расчетная сделка по инструменту бивалютная корзина";
+                case "6": return "Первая часть сделки по\r\nоперации РЕПО с ЦК";
+                default: return "Unknown Trade Sub Type";
+            }
+        }
         public void OnMessage(QuickFix.FIX44.TradeCaptureReport m, SessionID s)
         {
             try
             {
-                    using (var wrapper = DbContextFactory.Instance.CreateDbContext())
+                using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                     {
                         var db = wrapper.Context;
                     tradeCapture tc = new tradeCapture();
                     tc.exchangeCode = Program.EXCH_CODE; //добавил 19.11.2026
                     tc.TradeReportID = m.TradeReportID.Value;
-                    
-
-                    if(m.IsSetField(Tags.TrdType)) tc.TrdType = m.TrdType.Value.ToString(); //добавил 19.11.2026
-                    if(m.IsSetField(Tags.TrdSubType)) tc.TrdSubType=m.TrdSubType.Value.ToString(); //добавил 19.11.2026
+               
+                    if(m.IsSetField(Tags.TrdType)) tc.TrdType = getTrdTypeNameTCR(m.TrdType.Value.ToString()); //добавил 19.11.2026
+                    if(m.IsSetField(Tags.TrdSubType)) tc.TrdSubType=getTrdSubTypeNameTCR(m.TrdSubType.Value.ToString()); //добавил 19.11.2026
                     if(m.IsSetField(Tags.Symbol)) tc.ticker = m.Symbol.Value; //добавил 19.11.2026
                     if(m.IsSetField(Tags.Yield)) tc.Yield = m.Yield.Value.ToString(); //добавил 19.11.2026
                     if(m.IsSetField(Tags.PriceType)) tc.PriceType = m.PriceType.Value.ToString(); //добавил 19.11.2026
@@ -3940,58 +3967,62 @@ GO
                     tc.TransactTime=m.TransactTime.Value.ToString();
                     if (m.IsSetField(64)) tc.SettlDate = m.SettlDate.Value;
                     if (m.IsSetField(5459)) tc.OptionSettlType=m.GetString(5459);
-                    //если есть группа NoMiscFees
-                    if(m.IsSetField(136))
+
+                    int sidesCount1 = m.GetInt(Tags.NoSides);
+
+                    for (int i = 1; i <= sidesCount1; i++)
                     {
-                        int miscFeesCount = m.GroupCount(136);
-                        for (int i = 0; i < miscFeesCount; i++)
+                        QuickFix.FIX44.TradeCaptureReport.NoSidesGroup sideGroup =
+                            new QuickFix.FIX44.TradeCaptureReport.NoSidesGroup();
+
+                        m.GetGroup(i, sideGroup);
+
+                        // Проверяем наличие NoMiscFees внутри NoSides
+                        if (sideGroup.IsSetField(136))
                         {
-                            /*
-                            QuickFix.FIX44.TradeCaptureReport.NoMiscFeesGroup miscFeesGroup =
-                                new QuickFix.FIX44.TradeCaptureReport.NoMiscFeesGroup();
-                            m.GetGroup(i, miscFeesGroup);
-                            // Читаем поля внутри группы
-                            if (miscFeesGroup.IsSetMiscFeeAmt())
+                            int feesCount = sideGroup.GetInt(136);
+
+                            for (int j = 1; j <= feesCount; j++)
                             {
-                                var miscFeeAmtField = new MiscFeeAmt();
-                                miscFeesGroup.GetField(miscFeeAmtField);
-                                tc.MiscFeeAmt = miscFeeAmtField.Value.ToString();
-                            }
-                            */
-                            Group miscFeesGroup = m.GetGroup(i, 136); // 136 = NoMiscFees
-                            if(miscFeesGroup.IsSetField(139))
-                            {
-                                string feeType = miscFeesGroup.GetString(139); // 139 = MiscFeeType
-                                if(feeType=="4") //комиссия биржи
+                                QuickFix.Group miscGroup =
+                                    new QuickFix.Group(136, 137,
+                                        new int[] { 137, 138, 139, 891, 0 });
+
+                                sideGroup.GetGroup(j, miscGroup);
+
+                                decimal tSum = miscGroup.GetDecimal(137);
+                                int tType = miscGroup.GetInt(139);
+
+                                if (tType == 4) //комиссия биржи
                                 {
-                                    if (miscFeesGroup.IsSetField(137)) // 137 = MiscFeeAmt
+                                    if (miscGroup.IsSetField(137)) // 137 = MiscFeeAmt
                                     {
-                                        tc.MiscFeeAmt_Exchange = miscFeesGroup.GetString(137);
+                                        tc.MiscFeeAmt_Exchange = miscGroup.GetString(137);
                                     }
                                 }
-                                else if (feeType == "98") //комиссия биржи
+                                else if (tType == 98) //комиссия биржи
                                 {
-                                    if (miscFeesGroup.IsSetField(137)) // 137 = MiscFeeAmt
+                                    if (miscGroup.IsSetField(137)) // 137 = MiscFeeAmt
                                     {
-                                        tc.MiscFeeAmt_Clearing = miscFeesGroup.GetString(137);
+                                        tc.MiscFeeAmt_Clearing = miscGroup.GetString(137);
                                     }
                                 }
-                                else if (feeType == "99") //комиссия за тех.доступ
+                                else if (tType == 99) //комиссия за тех.доступ
                                 {
-                                    if (miscFeesGroup.IsSetField(137)) // 137 = MiscFeeAmt
+                                    if (miscGroup.IsSetField(137)) // 137 = MiscFeeAmt
                                     {
-                                        tc.MiscFeeAmt_Access = miscFeesGroup.GetString(137);
+                                        tc.MiscFeeAmt_Access = miscGroup.GetString(137);
                                     }
                                 }
                             }
-                            
                         }
                     }
+
                     //если есть группа NoSides
                     if (m.IsSetNoSides())
                     {
                         int sidesCount = m.NoSides.Value; //m.GetInt(552);
-                        for (int i = 0; i < sidesCount; i++)
+                        for (int i = 1; i <= sidesCount; i++)
                         {
                             // Получаем группу по индексу
                             QuickFix.FIX44.TradeCaptureReport.NoSidesGroup sideGroup =
@@ -4003,7 +4034,7 @@ GO
                                 // Side (54) — char
                                 var sideField = new Side();
                                 sideGroup.GetField(sideField);
-                                tc.Side = sideField.Value.ToString();
+                                tc.Side = GetSideName(sideField.Value);
                             }
                             else if (sideGroup.IsSetOrderID())
                             {
@@ -4028,6 +4059,25 @@ GO
                         
 
                     }
+                    //если есть группа NoUnderlyings
+                    if (m.IsSetNoUnderlyings())
+                    {
+                        int underlyingsCount = m.NoUnderlyings.Value; //m.GetInt(711);
+                        for (int i = 1; i <= underlyingsCount; i++)
+                        {
+                            // Получаем группу по индексу
+                            QuickFix.FIX44.TradeCaptureReport.NoUnderlyingsGroup underlyingGroup =
+                                new QuickFix.FIX44.TradeCaptureReport.NoUnderlyingsGroup();
+                            m.GetGroup(i, underlyingGroup);
+                            // Читаем поля внутри группы
+                            if (underlyingGroup.IsSetUnderlyingSymbol())
+                            {
+                                var underlyingSymbolField = new UnderlyingSymbol();
+                                underlyingGroup.GetField(underlyingSymbolField);
+                                tc.UnderlyingSymbol = underlyingSymbolField.Value.ToString();
+                            }
+                        }
+                    }
                     if (m.IsSetField(Tags.LastPx))
                     {
                         tc.Price = m.GetDecimal(Tags.LastPx).ToString();
@@ -4048,7 +4098,9 @@ GO
                     {
                         tc.ParentID = m.GetString(9580);
                     }
-                    
+                    tc.isReal = Program.ISREAL;
+                    //tc.msgNum = int.Parse(m.Header.GetString(34));
+                    tc.infoGroup = m.ToJSON();
                     db.TradeCapture.Add(tc);
                     db.SaveChanges();
 
