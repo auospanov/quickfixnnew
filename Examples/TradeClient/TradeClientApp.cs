@@ -3876,6 +3876,7 @@ GO
         {
             try
             {
+    
                 using (var wrapper = DbContextFactory.Instance.CreateDbContext())
                     {
                         var db = wrapper.Context;
@@ -3887,7 +3888,6 @@ GO
                     if(m.IsSetField(Tags.TrdSubType)) tc.TrdSubType=getTrdSubTypeNameTCR(m.TrdSubType.Value.ToString()); //добавил 19.11.2026
                     if(m.IsSetField(Tags.Symbol)) tc.ticker = m.Symbol.Value; //добавил 19.11.2026
                     if(m.IsSetField(Tags.Yield)) tc.Yield = m.Yield.Value.ToString(); //добавил 19.11.2026
-                    if(m.IsSetField(Tags.PriceType)) tc.PriceType = getPriceTypeNameTCR(m.PriceType.Value.ToString()); //добавил 19.11.2026
                     if (m.IsSetField(311)) //добавил 19.11.2026
                     {
                         tc.UnderlyingSymbol = m.GetString(311);
@@ -3896,46 +3896,6 @@ GO
                     if (m.IsSetField(336)) //добавил 19.11.2026
                     {
                         tc.UnderlyingSymbol = m.GetString(336);
-                    }
-                    //TradingSessionSubId
-                    if (m.IsSetField(625)) //добавил 19.11.2026
-                    {
-                        tc.TradingSessionSubID = m.GetString(625);
-                    }
-                    //GrossTradeAmt
-                    if (m.IsSetField(381)) //добавил 19.11.2026
-                    {
-                        tc.GrossTradeAmt = m.GetDecimal(381).ToString();
-                    }
-                    //AccruedInterestAmt
-                    if (m.IsSetField(159)) //добавил 19.11.2026
-                    {
-                        tc.AccruedInterestAmt = m.GetDecimal(159).ToString();
-                    }
-                    //SettlCurrAmt
-                    if (m.IsSetField(119)) //добавил 19.11.2026
-                    {
-                        tc.SettlCurrAmt = m.GetDecimal(119).ToString();
-                    }
-                    //EndAccruedInterestAmt
-                    if (m.IsSetField(920)) //добавил 19.11.2026
-                    {
-                        tc.EndAccruedInterestAmt = m.GetDecimal(920).ToString();
-                    }
-                    //StartCash
-                    if (m.IsSetField(921)) //добавил 19.11.2026
-                    {
-                        tc.StartCash = m.GetDecimal(921).ToString();
-                    }
-                    //EndCash
-                    if (m.IsSetField(922)) //добавил 19.11.2026
-                    {
-                        tc.EndCash = m.GetDecimal(922).ToString();
-                    }
-                    //PriceType
-                    if (m.IsSetField(423)) //добавил 19.11.2026
-                    {
-                        tc.PriceType = m.GetString(423);
                     }
                     //InstitutionId
                     if (m.IsSetField(5155)) //добавил 19.11.2026
@@ -3969,7 +3929,7 @@ GO
                     }
 
                     if (m.IsSetField(818)) tc.SecondaryTradeReportID = m.SecondaryTradeReportID.Value;
-                    tc.ExecType = m.ExecType.Value.ToString();
+                    tc.ExecType = m.ExecType.Value.ToString()=="F" ? "Сделка" : m.ExecType.Value.ToString();
                     tc.ExecID = m.ExecID.Value;
                     tc.LastQty = m.LastQty.Value.ToString();
                     tc.LastPx = m.LastPx.Value.ToString();
@@ -3981,59 +3941,9 @@ GO
                             tc.CalculatedCcyLastQty = m.GetString(1056);
                     }
                     tc.TradeDate = m.TradeDate.Value;
-                    tc.TransactTime=m.TransactTime.Value.ToString();
+                    tc.TransactTime=m.TransactTime.Value.ToString("yyyyMMdd-HH:mm:ss");
                     if (m.IsSetField(64)) tc.SettlDate = m.SettlDate.Value;
                     if (m.IsSetField(5459)) tc.OptionSettlType=m.GetString(5459);
-
-                    int sidesCount1 = m.GetInt(Tags.NoSides);
-
-                    for (int i = 1; i <= sidesCount1; i++)
-                    {
-                        QuickFix.FIX44.TradeCaptureReport.NoSidesGroup sideGroup =
-                            new QuickFix.FIX44.TradeCaptureReport.NoSidesGroup();
-
-                        m.GetGroup(i, sideGroup);
-
-                        // Проверяем наличие NoMiscFees внутри NoSides
-                        if (sideGroup.IsSetField(136))
-                        {
-                            int feesCount = sideGroup.GetInt(136);
-
-                            for (int j = 1; j <= feesCount; j++)
-                            {
-                                QuickFix.Group miscGroup =
-                                    new QuickFix.Group(136, 137,
-                                        new int[] { 137, 138, 139, 891, 0 });
-
-                                sideGroup.GetGroup(j, miscGroup);
-
-                                decimal tSum = miscGroup.GetDecimal(137);
-                                int tType = miscGroup.GetInt(139);
-
-                                if (tType == 4) //комиссия биржи
-                                {
-                                    if (miscGroup.IsSetField(137)) // 137 = MiscFeeAmt
-                                    {
-                                        tc.MiscFeeAmt_Exchange = miscGroup.GetString(137);
-                                    }
-                                }
-                                else if (tType == 98) //комиссия биржи
-                                {
-                                    if (miscGroup.IsSetField(137)) // 137 = MiscFeeAmt
-                                    {
-                                        tc.MiscFeeAmt_Clearing = miscGroup.GetString(137);
-                                    }
-                                }
-                                else if (tType == 99) //комиссия за тех.доступ
-                                {
-                                    if (miscGroup.IsSetField(137)) // 137 = MiscFeeAmt
-                                    {
-                                        tc.MiscFeeAmt_Access = miscGroup.GetString(137);
-                                    }
-                                }
-                            }
-                        }
-                    }
 
                     //если есть группа NoSides
                     if (m.IsSetNoSides())
@@ -4071,7 +3981,112 @@ GO
                                 sideGroup.GetField(secClOrderIdField);
                                 tc.SecondaryClOrdID = secClOrderIdField.Value.ToString();
                             }
-                          
+                            // Проверяем наличие NoMiscFees внутри NoSides
+                            if (sideGroup.IsSetField(136))
+                            {
+                                int feesCount = sideGroup.GetInt(136);
+
+                                for (int j = 1; j <= feesCount; j++)
+                                {
+                                    QuickFix.Group miscGroup =
+                                        new QuickFix.Group(136, 137,
+                                            new int[] { 137, 138, 139, 891, 0 });
+
+                                    sideGroup.GetGroup(j, miscGroup);
+
+                                    decimal tSum = miscGroup.GetDecimal(137);
+                                    int tType = miscGroup.GetInt(139);
+
+                                    if (tType == 4) //комиссия биржи
+                                    {
+                                        if (miscGroup.IsSetField(137)) // 137 = MiscFeeAmt
+                                        {
+                                            tc.MiscFeeAmt_Exchange = miscGroup.GetString(137);
+                                        }
+                                    }
+                                    else if (tType == 98) //комиссия биржи
+                                    {
+                                        if (miscGroup.IsSetField(137)) // 137 = MiscFeeAmt
+                                        {
+                                            tc.MiscFeeAmt_Clearing = miscGroup.GetString(137);
+                                        }
+                                    }
+                                    else if (tType == 99) //комиссия за тех.доступ
+                                    {
+                                        if (miscGroup.IsSetField(137)) // 137 = MiscFeeAmt
+                                        {
+                                            tc.MiscFeeAmt_Access = miscGroup.GetString(137);
+                                        }
+                                    }
+                                }
+                            }
+                            //если есть группа Parties внутри NoSides
+                            if (sideGroup.IsSetNoPartyIDs())
+                            {
+                                int partyCount = sideGroup.NoPartyIDs.Value;
+                                for (int j = 1; j <= partyCount; j++)
+                                {
+                                    QuickFix.FIX44.TradeCaptureReport.NoSidesGroup.NoPartyIDsGroup partyGroup =
+                                        new QuickFix.FIX44.TradeCaptureReport.NoSidesGroup.NoPartyIDsGroup();
+                                    sideGroup.GetGroup(j, partyGroup);
+                                    if(partyGroup.IsSetField(Tags.Account))
+                                    {
+                                        var accountField = new Account();
+                                        partyGroup.GetField(accountField);
+                                        tc.Account = accountField.Value.ToString();
+                                    }
+                                }
+                            }
+                            if (sideGroup.IsSetTradingSessionID())
+                            {
+                                tc.board = sideGroup.GetString(Tags.TradingSessionID);
+                            }
+                            if(sideGroup.IsSetTradingSessionSubID())
+                            {
+                                tc.TradingSessionSubID = sideGroup.GetString(Tags.TradingSessionSubID);
+                            }
+                            {
+                                tc.OrderID = sideGroup.GetString(Tags.OrderID);
+                            }
+                            if (sideGroup.IsSetGrossTradeAmt())
+                            {
+                                tc.GrossTradeAmt = sideGroup.GetDecimal(Tags.GrossTradeAmt).ToString();
+                            }
+                            if(sideGroup.IsSetAccruedInterestAmt())
+                            {
+                                tc.AccruedInterestAmt = sideGroup.GetDecimal(Tags.AccruedInterestAmt).ToString();
+                            }
+                            if(sideGroup.IsSetSettlCurrAmt())
+                            {
+                                tc.SettlCurrAmt = sideGroup.GetDecimal(Tags.SettlCurrAmt).ToString();
+                            }
+
+                            if(sideGroup.IsSetEndAccruedInterestAmt())
+                            {
+                                tc.EndAccruedInterestAmt = sideGroup.GetDecimal(Tags.EndAccruedInterestAmt).ToString();
+                            }
+                            if(sideGroup.IsSetStartCash())
+                            {
+                                tc.StartCash = sideGroup.GetDecimal(Tags.StartCash).ToString();
+                            }
+                            if(sideGroup.IsSetEndCash())
+                            {
+                                tc.EndCash = sideGroup.GetDecimal(Tags.EndCash).ToString();
+                            }
+                            if(sideGroup.IsSetCommission())
+                            {
+                                tc.Commission = sideGroup.GetDecimal(Tags.Commission).ToString();
+                            }
+                            if(sideGroup.IsSetCommType())
+                            {
+                                tc.CommType = sideGroup.GetString(Tags.CommType);
+                            }
+
+                            if (sideGroup.IsSetField(Tags.ClOrdID))
+                            {
+                                tc.ClOrdID = sideGroup.ClOrdID.Value.ToString();
+                            }
+
                         }
                         
 
@@ -4103,6 +4118,8 @@ GO
                     {
                         tc.Price2 = m.GetDecimal(640).ToString();
                     }
+                    if (m.IsSetField(Tags.PriceType)) tc.PriceType = getPriceTypeNameTCR(m.PriceType.Value.ToString()); //добавил 19.11.2026
+
                     if (m.IsSetField(5155))
                     {
                         tc.InstitutionID = m.GetString(5155);
