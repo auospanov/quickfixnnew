@@ -4020,22 +4020,11 @@ GO
                                     }
                                 }
                             }
-                            //если есть группа Parties внутри NoSides
-                            if (sideGroup.IsSetNoPartyIDs())
+                            if(sideGroup.IsSetAccount())
                             {
-                                int partyCount = sideGroup.NoPartyIDs.Value;
-                                for (int j = 1; j <= partyCount; j++)
-                                {
-                                    QuickFix.FIX44.TradeCaptureReport.NoSidesGroup.NoPartyIDsGroup partyGroup =
-                                        new QuickFix.FIX44.TradeCaptureReport.NoSidesGroup.NoPartyIDsGroup();
-                                    sideGroup.GetGroup(j, partyGroup);
-                                    if(partyGroup.IsSetField(Tags.Account))
-                                    {
-                                        var accountField = new Account();
-                                        partyGroup.GetField(accountField);
-                                        tc.Account = accountField.Value.ToString();
-                                    }
-                                }
+                                var accountField = new Account();
+                                sideGroup.GetField(accountField);
+                                tc.Account = accountField.Value.ToString();
                             }
                             if (sideGroup.IsSetTradingSessionID())
                             {
