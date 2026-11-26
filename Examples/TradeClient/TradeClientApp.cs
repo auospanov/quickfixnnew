@@ -3859,6 +3859,19 @@ GO
                 default: return "Unknown Trade Sub Type";
             }
         }
+        private string getPriceTypeNameTCR(string priceType)
+        {
+            switch (priceType)
+            {
+                case "1": return "Цена в процентах от номинала";
+                case "2": return "Цена за единицу ценной бумаги";
+                case "3": return "Цена в процентах от цены с поправкой на купон";
+                case "4": return "Цена в процентах от цены с поправкой на доходность";
+                case "5": return "Цена в процентах от цены с поправкой на доходность с учетом купона";
+                case "9": return "Доходность";
+                default: return "Unknown Price Type";
+            }
+        }
         public void OnMessage(QuickFix.FIX44.TradeCaptureReport m, SessionID s)
         {
             try
@@ -3874,7 +3887,7 @@ GO
                     if(m.IsSetField(Tags.TrdSubType)) tc.TrdSubType=getTrdSubTypeNameTCR(m.TrdSubType.Value.ToString()); //добавил 19.11.2026
                     if(m.IsSetField(Tags.Symbol)) tc.ticker = m.Symbol.Value; //добавил 19.11.2026
                     if(m.IsSetField(Tags.Yield)) tc.Yield = m.Yield.Value.ToString(); //добавил 19.11.2026
-                    if(m.IsSetField(Tags.PriceType)) tc.PriceType = m.PriceType.Value.ToString(); //добавил 19.11.2026
+                    if(m.IsSetField(Tags.PriceType)) tc.PriceType = getPriceTypeNameTCR(m.PriceType.Value.ToString()); //добавил 19.11.2026
                     if (m.IsSetField(311)) //добавил 19.11.2026
                     {
                         tc.UnderlyingSymbol = m.GetString(311);
